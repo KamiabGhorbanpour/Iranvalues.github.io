@@ -1,2 +1,2 @@
-# 8values.github.io
-The 8values Political Quiz measures individuals' political values, including Equality, Nation, Liberty, Tradition, Markets, World, Authority, and Progress.
+# Iranvalues.github.io
+The IranValues Political Quiz measures individuals' political values in the context of Iranian politics.
