@@ -74,22 +74,18 @@
       if (!scores || typeof scores !== "object") return 0;
       if (Object.prototype.hasOwnProperty.call(scores, key)) return num(scores[key]);
 
-      // mild fallback variants
       const alt1 = key.replace(/-/g, "_");
       const alt2 = key.replace(/_/g, "-");
       for (const k of [alt1, alt2]) {
         if (Object.prototype.hasOwnProperty.call(scores, k)) return num(scores[k]);
       }
-
       return 0;
     }
 
     /* ============================
-       AXIS MATH (FIXED FOR MIRRORED SCORING)
+       AXIS MATH (for mirrored scoring)
        ============================ */
 
-    // Your engine produces mirrored poles (e.g., authoritarian=+209, democratic=-209).
-    // So we compute bias from (R - L), normalized by (|L|+|R|), then map to 0..100.
     function rightPercent(leftKey, rightKey) {
       const L = getScore(leftKey);
       const R = getScore(rightKey);
@@ -97,10 +93,8 @@
       const denom = Math.abs(L) + Math.abs(R);
       if (denom === 0) return 50;
 
-      const bias = (R - L) / denom; // -1..+1 typically
+      const bias = (R - L) / denom; // -1..+1
       const rpct = 50 + 50 * bias;  // 0..100
-
-      // clamp for safety
       return Math.max(0, Math.min(100, rpct));
     }
 
@@ -108,12 +102,13 @@
       const r = rightPercent(axis.leftKey, axis.rightKey);
       const l = 100 - r;
 
+      // IMPORTANT: force flex-basis, so style.css can't lock it to 50/50
       return `
         <div class="axis">
           <div class="axis-title">${axis.title}</div>
           <div class="bar">
-            <div class="bar-left" style="width:${l}%"></div>
-            <div class="bar-right" style="width:${r}%"></div>
+            <div class="bar-left" style="flex: 0 0 ${l}%; width:${l}%;"></div>
+            <div class="bar-right" style="flex: 0 0 ${r}%; width:${r}%;"></div>
           </div>
           <div class="axis-labels">
             <span>${axis.leftLabel} (${l.toFixed(0)}%)</span>
@@ -192,8 +187,11 @@
     .axis { margin: 18px 0; }
     .axis-title { font-weight: 700; margin-bottom: 8px; }
     .bar { display:flex; height:18px; border-radius:10px; overflow:hidden; background:#eee; }
+
+    /* fallback colors if style.css doesn't define */
     .bar-left { background:#444; }
     .bar-right { background:#999; }
+
     .axis-labels { display:flex; justify-content:space-between; margin-top:6px; font-size:14px; }
   </style>
 </body>
