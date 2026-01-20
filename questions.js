@@ -5,7 +5,8 @@
 // - showIf: (state) => boolean, used for branching/gating
 // - meta: used only for eligibility/branch logic (not shown to users)
 
-const questions = [
+// IMPORTANT: use `var` so it becomes a true global (window.questions) in the browser.
+var questions = [
   // --------------------------
   // LAYER 1: Marxism eligibility (economy + materialism)
   // --------------------------
@@ -151,16 +152,26 @@ const questions = [
     effect: { authoritarian: 2, democratic: -2 },
     meta: { mlmGate: true }
   },
-{
-  id: "ml_split",
-  question: "The strategy of postponing socialism in favor of a broad anti-imperialist alliance has historically failed in Iran.",
-  effect: { /* whatever you already had */ },
-  meta: { mlStalinSplit: true }, // <-- THIS is the key
-  showIf: (state) => state.flags.leninistEligible === true
-},
 
+  // --------------------------
+  // SPLIT: ML (Stalinism) vs MLM
+  // Rule in your engine:
+  // - If user DISAGREES with this statement (mult <= -0.5), then mlStalinEligible = true
+  // - If mlStalinEligible true, MLM is forced false
+  // --------------------------
+  {
+    id: "ml_split",
+    layer: "ml_stalin_split",
+    showIf: (state) => state.flags.leninistEligible === true,
+    question: "The strategy of postponing socialism in favor of a broad anti-imperialist alliance has historically failed in Iran.",
+    // keep a small effect or none; doesn't matter for branching.
+    effect: { authoritarian: 1, democratic: -1 },
+    meta: { mlStalinSplit: true }
+  }
 ];
 
-// IMPORTANT: keep the name `questions` for compatibility with the existing pages.
-
-
+// Debug: confirm the split tag is present
+console.log(
+  "questions.js loaded. mlStalinSplit tagged count:",
+  questions.filter(q => q && q.meta && q.meta.mlStalinSplit).length
+);
