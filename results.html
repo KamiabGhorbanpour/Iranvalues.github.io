@@ -2,7 +2,7 @@
 <html>
 <head>
   <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:400,700" rel="stylesheet">
-  <link href='style.css' rel='stylesheet' type='text/css'>
+  <link href="style.css" rel="stylesheet" type="text/css">
   <title>Iranvalues Results</title>
   <link rel="icon" type="x-icon" href="icon.png">
   <link rel="shortcut icon" type="x-icon" href="icon.png">
@@ -14,6 +14,16 @@
   <hr>
   <h2 style="text-align:center;">Your Results</h2>
 
+  <!-- DOCTRINAL RESULT BLOCK -->
+  <div class="explanation_bg" style="margin-top: 20px;">
+    <div class="spacer">
+      <h2 style="text-align:center;">Doctrinal Result</h2>
+      <p id="branch-title" style="text-align:center; font-size: 15pt;"></p>
+      <p id="branch-desc" style="text-align:center; opacity: 0.85;"></p>
+    </div>
+  </div>
+
+  <!-- AXIS RESULTS -->
   <div id="axes-results"></div>
 
   <p style="text-align:center; margin-top: 24px;">
@@ -24,30 +34,23 @@
   <script src="axes.js"></script>
 
   <script>
-    // Read stored scores
+    /* ============================
+       AXIS RENDERING (UNCHANGED)
+       ============================ */
+
     const scores = JSON.parse(localStorage.getItem("scores") || "{}");
 
     function num(x) {
       return Number.isFinite(x) ? x : 0;
     }
 
-    // Because your quiz uses signed multipliers, scores can be negative.
-    // We'll compute a "right-side %" using a balanced mapping:
-    // diff = (right - left); map to 0..100 via: 50 + (diff / (2*max))*100
-    // But we don't know max. So we use a robust fallback:
-    // right% = (right / (|left|+|right|)) * 100 if denominator > 0
     function rightPercent(leftKey, rightKey) {
       const L = num(scores[leftKey]);
       const R = num(scores[rightKey]);
-
       const denom = Math.abs(L) + Math.abs(R);
       if (denom === 0) return 50;
 
-      // If R is positive and L is negative, this naturally pushes right higher, etc.
       const rpct = (Math.abs(R) / denom) * 100;
-
-      // Direction correction:
-      // If both are negative, abs() loses direction; we restore direction using (R-L).
       const diff = R - L;
       if (diff < 0) return 100 - rpct;
       return rpct;
@@ -72,16 +75,15 @@
       `;
     }
 
-    // Render
     const root = document.getElementById("axes-results");
     if (typeof AXES === "undefined") {
-      root.innerHTML = "<p style='text-align:center;'>AXES not loaded. Make sure axes.js exists and is linked.</p>";
+      root.innerHTML = "<p style='text-align:center;'>AXES not loaded.</p>";
     } else {
       root.innerHTML = AXES.map(axisBlock).join("");
     }
   </script>
 
-  <!-- Minimal styling if your style.css doesn't include these -->
+  <!-- Minimal fallback styling -->
   <style>
     .axis { margin: 18px 0; }
     .axis-title { font-weight: 700; margin-bottom: 8px; }
@@ -90,5 +92,74 @@
     .bar-right { background:#999; }
     .axis-labels { display:flex; justify-content:space-between; margin-top:6px; font-size:14px; }
   </style>
+
+  <script>
+    /* ============================
+       DOCTRINAL BRANCH LOGIC
+       ============================ */
+
+    const flags = (() => {
+      try {
+        return JSON.parse(localStorage.getItem("flags")) || {};
+      } catch (e) {
+        return {};
+      }
+    })();
+
+    function determineBranch(flags) {
+      if (!flags || typeof flags !== "object") {
+        return {
+          title: "Axis-based result only",
+          desc: "Your result is based solely on value axes."
+        };
+      }
+
+      if (flags.mlmQualified) {
+        return {
+          title: "Marxism–Leninism–Maoism (MLM)",
+          desc: "You passed Marxist, Leninist, and anti-revisionist thresholds used in this quiz."
+        };
+      }
+
+      if (flags.leninistEligible) {
+        return {
+          title: "Leninist Marxism",
+          desc: "Your answers support centralized party leadership as a revolutionary necessity."
+        };
+      }
+
+      if (flags.authMarx === true) {
+        return {
+          title: "Authoritarian-leaning Marxism",
+          desc: "You prioritized revolutionary cohesion over pluralism."
+        };
+      }
+
+      if (flags.authMarx === false) {
+        return {
+          title: "Democratic / pluralist Marxism",
+          desc: "You favored pluralism within socialist transformation."
+        };
+      }
+
+      if (flags.marxEligible) {
+        return {
+          title: "Marxism (general)",
+          desc: "You met the criteria for Marxist analysis but not a doctrinal sub-branch."
+        };
+      }
+
+      return {
+        title: "Axis-based result only",
+        desc: "You did not enter any doctrinal branch."
+      };
+    }
+
+    const branch = determineBranch(flags);
+
+    document.getElementById("branch-title").textContent = branch.title;
+    document.getElementById("branch-desc").textContent = branch.desc;
+  </script>
+
 </body>
 </html>
