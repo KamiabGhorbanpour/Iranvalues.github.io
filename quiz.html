@@ -53,94 +53,231 @@ stats"></a></div></noscript>
 
 <!-- JavaScript for the test itself -->
 <script>
-  // --- Safety checks ---
-  if (typeof AXES === "undefined") {
-    alert("AXES is not loaded. Make sure axes.js is included before questions.js.");
-    throw new Error("AXES not loaded");
+  // --- Branching quiz engine ---
+  // Expects: questions (from questions.js)
+  // Saves: localStorage.scores + localStorage.flags + localStorage.path
+
+  const state = {
+    scores: JSON.parse(localStorage.getItem("scores") || "{}"),
+    answers: {},      // questionId -> mult
+    flags: {          // computed continuously
+      marxEligible: false,
+      authMarx: null,          // true/false/null
+      leninistEligible: false,
+      mlmQualified: false
+    },
+    history: [],      // list of indices shown
+    pos: -1           // pointer into history
+  };
+
+  function num(x) {
+    return Number.isFinite(x) ? x : 0;
   }
-  if (typeof questions === "undefined" || !Array.isArray(questions)) {
-    alert("questions.js did not load correctly.");
-    throw new Error("questions not loaded");
+
+  function setScore(key, delta) {
+    state.scores[key] = num(state.scores[key]) + delta;
   }
 
-  // --- Build score buckets for ALL keys from axes.js ---
-  const scores = {};
-  AXES.forEach(a => {
-    scores[a.leftKey] = 0;
-    scores[a.rightKey] = 0;
-  });
+  function applyEffect(q, mult) {
+    if (!q.effect) return;
+    for (const k of Object.keys(q.effect)) {
+      setScore(k, mult * q.effect[k]);
+    }
+  }
 
-  // --- Track per-question contributions so Back works correctly ---
-  const contrib = new Array(questions.length); // each entry will be an object of key->delta
+  function isAgree(mult) { return mult >= 0.5; }
+  function isDisagree(mult) { return mult <= -0.5; }
+  function isUnsure(mult) { return mult === 0.0; }
 
-  var qn = 0; // Question number
-  init_question();
+  function recomputeFlags() {
+    // --- Marx eligibility ---
+    const marxQs = questions.filter(q => q.meta && q.meta.marxGate);
+    const answeredMarx = marxQs.filter(q => state.answers[q.id] !== undefined);
+
+    // Heuristic: require enough answered, and enough "agree"
+    // Default rule: >=6 agrees out of 9 (once all answered), otherwise false.
+    let marxAgree = 0;
+    for (const q of marxQs) {
+      const m = state.answers[q.id];
+      if (m === undefined) continue;
+      if (isAgree(m)) marxAgree += 1;
+    }
+    // Only decide eligibility once all 9 are answered (avoids early branching weirdness)
+    const marxComplete = (answeredMarx.length === marxQs.length);
+    state.flags.marxEligible = marxComplete ? (marxAgree >= 6) : false;
+
+    // --- Auth Marx tilt ---
+    const tiltQ = questions.find(q => q.meta && q.meta.authTilt);
+    if (tiltQ && state.answers[tiltQ.id] !== undefined) {
+      const m = state.answers[tiltQ.id];
+      if (isAgree(m)) state.flags.authMarx = true;
+      else if (isDisagree(m)) state.flags.authMarx = false;
+      else state.flags.authMarx = null;
+    } else {
+      state.flags.authMarx = null;
+    }
+
+    // --- Leninist eligibility (for authMarx === true only) ---
+    const lenQs = questions.filter(q => q.meta && q.meta.leninGate);
+    let lenAgree = 0;
+    let lenAnswered = 0;
+    for (const q of lenQs) {
+      if (q.showIf && !q.showIf(state)) continue; // only count if actually relevant
+      const m = state.answers[q.id];
+      if (m === undefined) continue;
+      lenAnswered += 1;
+      if (isAgree(m)) lenAgree += 1;
+    }
+    // Rule: >=2 agrees among the first 3 "leninGate" questions that are asked
+    // (We include len_04 in leninGate but it's not required for eligibility.)
+    // We'll compute required-set explicitly:
+    const requiredLenIds = ["len_01","len_02","len_03"];
+    let reqAgree = 0, reqAnswered = 0;
+    for (const id of requiredLenIds) {
+      const q = questions.find(x => x.id === id);
+      if (!q) continue;
+      if (q.showIf && !q.showIf(state)) continue;
+      const m = state.answers[id];
+      if (m === undefined) continue;
+      reqAnswered += 1;
+      if (isAgree(m)) reqAgree += 1;
+    }
+    state.flags.leninistEligible = (reqAnswered === requiredLenIds.length) ? (reqAgree >= 2) : false;
+
+    // --- MLM qualification (allow up to 1 unsure across MLM gate questions) ---
+    const mlmQs = questions.filter(q => q.meta && q.meta.mlmGate);
+    const relevantMlmQs = mlmQs.filter(q => !q.showIf || q.showIf(state));
+    let mlmAgree = 0, mlmUnsure = 0, mlmAnswered = 0;
+    for (const q of relevantMlmQs) {
+      const m = state.answers[q.id];
+      if (m === undefined) continue;
+      mlmAnswered += 1;
+      if (isAgree(m)) mlmAgree += 1;
+      else if (isUnsure(m)) mlmUnsure += 1;
+      // Disagree counts as fail.
+    }
+    // MLM gate requires all answered, no disagree, and at most 1 unsure:
+    // i.e. mlmAgree + mlmUnsure === total and mlmUnsure <= 1
+    if (relevantMlmQs.length > 0 && mlmAnswered === relevantMlmQs.length) {
+      // Check no disagree:
+      let anyDisagree = false;
+      for (const q of relevantMlmQs) {
+        const m = state.answers[q.id];
+        if (m !== undefined && isDisagree(m)) { anyDisagree = true; break; }
+      }
+      state.flags.mlmQualified = (!anyDisagree && (mlmUnsure <= 1));
+    } else {
+      state.flags.mlmQualified = false;
+    }
+  }
+
+  function showIfPasses(q) {
+    return !q.showIf || q.showIf(state);
+  }
+
+  function findNextIndex(fromIndex) {
+    for (let i = fromIndex + 1; i < questions.length; i++) {
+      if (showIfPasses(questions[i])) return i;
+    }
+    return -1;
+  }
+
+  function persistState() {
+    localStorage.setItem("scores", JSON.stringify(state.scores));
+    localStorage.setItem("flags", JSON.stringify(state.flags));
+    localStorage.setItem("path", JSON.stringify(state.history.map(i => questions[i].id)));
+  }
+
+  // --- UI wiring ---
+  let qn = 0;
+
+  function currentIndex() {
+    if (state.pos >= 0 && state.pos < state.history.length) return state.history[state.pos];
+    return -1;
+  }
 
   function init_question() {
-    document.getElementById("question-text").innerHTML = questions[qn].question;
-    document.getElementById("question-number").innerHTML = "Question " + (qn + 1) + " of " + (questions.length);
+    const idx = currentIndex();
+    if (idx === -1) return;
 
-    if (qn === 0) {
-      document.getElementById("back_button").style.display = 'none';
-      document.getElementById("back_button_off").style.display = 'block';
+    const q = questions[idx];
+    document.getElementById("question-text").innerHTML = q.question;
+
+    // Display position within shown questions so far
+    document.getElementById("question-number").innerHTML =
+      "Question " + (state.pos + 1) + " of " + state.history.length;
+
+    if (state.pos === 0) {
+      document.getElementById("back_button").style.display = "none";
+      document.getElementById("back_button_off").style.display = "block";
     } else {
-      document.getElementById("back_button").style.display = 'block';
-      document.getElementById("back_button_off").style.display = 'none';
+      document.getElementById("back_button").style.display = "block";
+      document.getElementById("back_button_off").style.display = "none";
     }
   }
 
-  function apply_effect(effectObj, mult) {
-    // effectObj: { key: weight, ... }
-    const delta = {};
-    for (const k in effectObj) {
-      // Ensure the key exists in scores; if not, create it (helps catch typos without crashing)
-      if (scores[k] === undefined) scores[k] = 0;
-      const change = (effectObj[k] || 0) * mult;
-      scores[k] += change;
-      delta[k] = change;
-    }
-    return delta;
-  }
+  function start() {
+    // Start from the first eligible question
+    const first = findNextIndex(-1);
+    if (first === -1) return results();
 
-  function undo_effect(deltaObj) {
-    if (!deltaObj) return;
-    for (const k in deltaObj) {
-      if (scores[k] === undefined) scores[k] = 0;
-      scores[k] -= deltaObj[k];
-    }
+    state.history = [first];
+    state.pos = 0;
+    init_question();
   }
 
   function next_question(mult) {
-    // If user is re-answering this question (after going back), undo old contribution first.
-    undo_effect(contrib[qn]);
+    const idx = currentIndex();
+    if (idx === -1) return;
 
-    const effect = questions[qn].effect || {};
-    contrib[qn] = apply_effect(effect, mult);
+    const q = questions[idx];
 
-    qn++;
-    if (qn < questions.length) {
-      init_question();
-    } else {
-      results();
+    // Apply scoring
+    applyEffect(q, mult);
+
+    // Record answer
+    state.answers[q.id] = mult;
+
+    // Recompute flags (branching depends on this)
+    recomputeFlags();
+
+    // Persist continuously
+    persistState();
+
+    // Move forward: if we've previously branched and used Back, drop future history
+    if (state.pos < state.history.length - 1) {
+      state.history = state.history.slice(0, state.pos + 1);
     }
+
+    // Find next eligible question after current index
+    const nextIdx = findNextIndex(idx);
+    if (nextIdx === -1) {
+      return results();
+    }
+
+    state.history.push(nextIdx);
+    state.pos += 1;
+    init_question();
   }
 
   function prev_question() {
-    if (qn === 0) return;
-
-    // Go back one question, and undo that question's contribution
-    qn--;
-    undo_effect(contrib[qn]);
-    contrib[qn] = undefined;
-
+    if (state.pos <= 0) return;
+    state.pos -= 1;
     init_question();
   }
 
   function results() {
-    // Store raw scores AND axes definitions so results.html can render dynamically
-    localStorage.setItem("scores", JSON.stringify(scores));
-    localStorage.setItem("axes", JSON.stringify(AXES));
-    window.location.href = "results.html";
+    // Save final state
+    recomputeFlags();
+    persistState();
+
+    // Go to results page (your results.html already reads localStorage.scores)
+    location.href = "results.html";
   }
+
+  // Start the quiz
+  start();
 </script>
+
 </body>
+
