@@ -19,7 +19,11 @@
   <div class="iv-wrap">
     <section class="iv-hero" id="ideology-hero" aria-live="polite">
       <div class="iv-hero__media">
-        <img id="ideology-img" src="img/cpimlm-symbol.png" alt="Ideology symbol" loading="lazy">
+        <img id="ideology-img"
+     class="iv-logo"
+     src="img/cpimlm-symbol.png?v=4"
+     alt="Symbol associated with Iranian MLM currents"
+     loading="lazy">
       </div>
       <div class="iv-hero__content">
         <div class="iv-kicker">Ideology</div>
@@ -350,6 +354,13 @@
       .iv-figure{ grid-template-columns: 100px 1fr; }
       .iv-figure__img{ width: 100px; height: 100px; }
     }
+    /* Logo-specific fix: do NOT crop like a photo */
+.iv-logo{
+  object-fit: contain !important;
+  background: rgba(0,0,0,0.18);
+  border: 1px solid rgba(255,255,255,0.18);
+  padding: 10px;
+}
   </style>
 </body>
 </html>
