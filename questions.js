@@ -157,8 +157,10 @@ const questions = [
     showIf: (state) => state.flags.leninistEligible === true,
     question: "The strategy of postponing socialism in favor of alliances with non-socialist “anti-imperialist” forces has historically failed in Iran.",
     effect: { authoritarian: 2, democratic: -2 },
-    meta: { mlmGate: true }
+    meta: { mlmGate: true, mlStalinSplit: true }
+
   }
 ];
 
 // IMPORTANT: keep the name `questions` for compatibility with the existing pages.
+
