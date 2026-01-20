@@ -1,20 +1,41 @@
 <script>
   // --- Branching quiz engine ---
   // Expects: questions (from questions.js)
-  // Saves: localStorage.scores + localStorage.flags + localStorage.path
+  // Saves: localStorage.scores + localStorage.flags + localStorage.path (+ answers)
+
+  // 0) HARD GUARD: if questions.js didn't load, don't go blank
+  if (typeof questions === "undefined" || !Array.isArray(questions)) {
+    const qn = document.getElementById("question-number");
+    const qt = document.getElementById("question-text");
+    if (qn) qn.innerHTML = "Error";
+    if (qt) {
+      qt.style.whiteSpace = "pre-wrap";
+      qt.innerHTML =
+        "questions.js did not load, or it has a syntax error.\n\n" +
+        "Open DevTools → Console to see the exact error and line number.\n" +
+        "Common cause: a missing comma or bracket in questions.js.";
+    }
+    throw new Error("questions.js not loaded or invalid");
+  }
 
   const state = {
-    scores: JSON.parse(localStorage.getItem("scores") || "{}"),
-    answers: {},      // questionId -> mult
-    flags: {          // computed continuously
+    scores: (() => {
+      try { return JSON.parse(localStorage.getItem("scores") || "{}"); }
+      catch (e) { return {}; }
+    })(),
+    answers: (() => {
+      try { return JSON.parse(localStorage.getItem("answers") || "{}"); }
+      catch (e) { return {}; }
+    })(),
+    flags: {
       marxEligible: false,
-      authMarx: null,           // true/false/null
+      authMarx: null,
       leninistEligible: false,
-      mlStalinEligible: false,  // NEW: ML (Stalinism) splitter
+      mlStalinEligible: false,
       mlmQualified: false
     },
-    history: [],      // list of indices shown
-    pos: -1           // pointer into history
+    history: [],
+    pos: -1
   };
 
   function num(x) {
@@ -27,7 +48,7 @@
   }
 
   function applyEffect(q, mult) {
-    if (!q.effect) return;
+    if (!q || !q.effect) return;
     for (const k of Object.keys(q.effect)) {
       setScore(k, mult * q.effect[k]);
     }
@@ -37,9 +58,21 @@
   function isDisagree(mult) { return mult <= -0.5; }
   function isUnsure(mult) { return mult === 0.0; }
 
+  // 1) SAFETY: never let showIf crash the quiz
+  function safeShowIf(q) {
+    if (!q || !q.showIf) return true;
+    try {
+      return !!q.showIf(state);
+    } catch (e) {
+      console.error("showIf crashed for question:", q && q.id, e);
+      // Default to NOT showing a broken conditional question
+      return false;
+    }
+  }
+
   function recomputeFlags() {
     // --- Marx eligibility ---
-    const marxQs = questions.filter(q => q.meta && q.meta.marxGate);
+    const marxQs = questions.filter(q => q && q.meta && q.meta.marxGate);
     const answeredMarx = marxQs.filter(q => state.answers[q.id] !== undefined);
 
     let marxAgree = 0;
@@ -53,7 +86,7 @@
     state.flags.marxEligible = marxComplete ? (marxAgree >= 6) : false;
 
     // --- Auth Marx tilt ---
-    const tiltQ = questions.find(q => q.meta && q.meta.authTilt);
+    const tiltQ = questions.find(q => q && q.meta && q.meta.authTilt);
     if (tiltQ && state.answers[tiltQ.id] !== undefined) {
       const m = state.answers[tiltQ.id];
       if (isAgree(m)) state.flags.authMarx = true;
@@ -64,16 +97,17 @@
     }
 
     // --- Leninist eligibility ---
-    // (Your current scheme: require 2/3 agrees on len_01..len_03)
     const requiredLenIds = ["len_01","len_02","len_03"];
     let reqAgree = 0, reqAnswered = 0;
 
     for (const id of requiredLenIds) {
-      const q = questions.find(x => x.id === id);
+      const q = questions.find(x => x && x.id === id);
       if (!q) continue;
-      if (q.showIf && !q.showIf(state)) continue;
+      if (!safeShowIf(q)) continue;
+
       const m = state.answers[id];
       if (m === undefined) continue;
+
       reqAnswered += 1;
       if (isAgree(m)) reqAgree += 1;
     }
@@ -81,28 +115,26 @@
     state.flags.leninistEligible =
       (reqAnswered === requiredLenIds.length) ? (reqAgree >= 2) : false;
 
-    // --- ML (Stalinism) vs MLM SPLIT ---
-    // You said: "disagreeing with the ONE at the end makes you ML instead of MLM"
-    // So we look for the EXISTING question that you tag as meta.mlStalinSplit === true,
-    // and if user DISAGREES (<= -0.5), we set mlStalinEligible true.
-    const splitQ = questions.find(q => q.meta && q.meta.mlStalinSplit);
+    // --- ML (Stalinism) vs MLM split (existing question tagged meta.mlStalinSplit) ---
+    const splitQ = questions.find(q => q && q.meta && q.meta.mlStalinSplit);
     if (state.flags.leninistEligible && splitQ && state.answers[splitQ.id] !== undefined) {
       state.flags.mlStalinEligible = isDisagree(state.answers[splitQ.id]);
     } else {
       state.flags.mlStalinEligible = false;
     }
 
-    // --- MLM qualification (allow up to 1 unsure, no disagree) ---
-    // IMPORTANT: if user is ML (Stalinism), we force MLM false (they are not on MLM path).
+    // --- MLM qualification ---
+    // If ML(Stalinism) triggered, MLM cannot be true.
     if (state.flags.mlStalinEligible) {
       state.flags.mlmQualified = false;
       return;
     }
 
-    const mlmQs = questions.filter(q => q.meta && q.meta.mlmGate);
-    const relevantMlmQs = mlmQs.filter(q => !q.showIf || q.showIf(state));
+    const mlmQs = questions.filter(q => q && q.meta && q.meta.mlmGate);
+    const relevantMlmQs = mlmQs.filter(q => safeShowIf(q));
 
     let mlmUnsure = 0, mlmAnswered = 0;
+
     for (const q of relevantMlmQs) {
       const m = state.answers[q.id];
       if (m === undefined) continue;
@@ -122,13 +154,9 @@
     }
   }
 
-  function showIfPasses(q) {
-    return !q.showIf || q.showIf(state);
-  }
-
   function findNextIndex(fromIndex) {
     for (let i = fromIndex + 1; i < questions.length; i++) {
-      if (showIfPasses(questions[i])) return i;
+      if (safeShowIf(questions[i])) return i;
     }
     return -1;
   }
@@ -136,6 +164,7 @@
   function persistState() {
     localStorage.setItem("scores", JSON.stringify(state.scores));
     localStorage.setItem("flags", JSON.stringify(state.flags));
+    localStorage.setItem("answers", JSON.stringify(state.answers));
     localStorage.setItem("path", JSON.stringify(state.history.map(i => questions[i].id)));
   }
 
@@ -163,6 +192,9 @@
   }
 
   function start() {
+    // Ensure flags reflect any restored answers (prevents broken showIf early)
+    recomputeFlags();
+
     const first = findNextIndex(-1);
     if (first === -1) return results();
 
@@ -177,20 +209,16 @@
 
     const q = questions[idx];
 
-    // Apply scoring & record answer
     applyEffect(q, mult);
     state.answers[q.id] = mult;
 
-    // Recompute flags and persist
     recomputeFlags();
     persistState();
 
-    // Drop future history if user went back
     if (state.pos < state.history.length - 1) {
       state.history = state.history.slice(0, state.pos + 1);
     }
 
-    // Find next eligible question
     const nextIdx = findNextIndex(idx);
     if (nextIdx === -1) return results();
 
