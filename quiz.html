@@ -1,243 +1,287 @@
 <script>
-  // --- Branching quiz engine ---
-  // Expects: questions (from questions.js)
-  // Saves: localStorage.scores + localStorage.flags + localStorage.path (+ answers)
-
-  // 0) HARD GUARD: if questions.js didn't load, don't go blank
-  if (typeof questions === "undefined" || !Array.isArray(questions)) {
-    const qn = document.getElementById("question-number");
-    const qt = document.getElementById("question-text");
-    if (qn) qn.innerHTML = "Error";
-    if (qt) {
-      qt.style.whiteSpace = "pre-wrap";
-      qt.innerHTML =
-        "questions.js did not load, or it has a syntax error.\n\n" +
-        "Open DevTools → Console to see the exact error and line number.\n" +
-        "Common cause: a missing comma or bracket in questions.js.";
+(function () {
+  // --- ALWAYS show errors on-page (even if question elements aren't there yet) ---
+  function showFatal(msg) {
+    let box = document.getElementById("iv-fatal");
+    if (!box) {
+      box = document.createElement("pre");
+      box.id = "iv-fatal";
+      box.style.whiteSpace = "pre-wrap";
+      box.style.padding = "14px";
+      box.style.margin = "14px auto";
+      box.style.maxWidth = "980px";
+      box.style.border = "2px solid #cc4444";
+      box.style.borderRadius = "12px";
+      box.style.background = "rgba(0,0,0,0.25)";
+      box.style.color = "white";
+      box.style.fontSize = "14px";
+      box.style.lineHeight = "1.45";
+      document.body.prepend(box);
     }
-    throw new Error("questions.js not loaded or invalid");
+    box.textContent = msg;
   }
 
-  const state = {
-    scores: (() => {
-      try { return JSON.parse(localStorage.getItem("scores") || "{}"); }
-      catch (e) { return {}; }
-    })(),
-    answers: (() => {
-      try { return JSON.parse(localStorage.getItem("answers") || "{}"); }
-      catch (e) { return {}; }
-    })(),
-    flags: {
-      marxEligible: false,
-      authMarx: null,
-      leninistEligible: false,
-      mlStalinEligible: false,
-      mlmQualified: false
-    },
-    history: [],
-    pos: -1
+  window.onerror = function (msg, src, line, col, err) {
+    showFatal(
+      "JavaScript error:\n" +
+      String(msg) + "\n\n" +
+      (src ? ("File: " + src + "\n") : "") +
+      (line ? ("Line: " + line + ":" + col + "\n\n") : "") +
+      (err && err.stack ? err.stack : "")
+    );
+    return true;
   };
 
-  function num(x) {
-    const n = parseFloat(x);
-    return Number.isFinite(n) ? n : 0;
-  }
-
-  function setScore(key, delta) {
-    state.scores[key] = num(state.scores[key]) + delta;
-  }
-
-  function applyEffect(q, mult) {
-    if (!q || !q.effect) return;
-    for (const k of Object.keys(q.effect)) {
-      setScore(k, mult * q.effect[k]);
-    }
-  }
-
-  function isAgree(mult) { return mult >= 0.5; }
-  function isDisagree(mult) { return mult <= -0.5; }
-  function isUnsure(mult) { return mult === 0.0; }
-
-  // 1) SAFETY: never let showIf crash the quiz
-  function safeShowIf(q) {
-    if (!q || !q.showIf) return true;
-    try {
-      return !!q.showIf(state);
-    } catch (e) {
-      console.error("showIf crashed for question:", q && q.id, e);
-      // Default to NOT showing a broken conditional question
-      return false;
-    }
-  }
-
-  function recomputeFlags() {
-    // --- Marx eligibility ---
-    const marxQs = questions.filter(q => q && q.meta && q.meta.marxGate);
-    const answeredMarx = marxQs.filter(q => state.answers[q.id] !== undefined);
-
-    let marxAgree = 0;
-    for (const q of marxQs) {
-      const m = state.answers[q.id];
-      if (m === undefined) continue;
-      if (isAgree(m)) marxAgree += 1;
-    }
-
-    const marxComplete = (answeredMarx.length === marxQs.length);
-    state.flags.marxEligible = marxComplete ? (marxAgree >= 6) : false;
-
-    // --- Auth Marx tilt ---
-    const tiltQ = questions.find(q => q && q.meta && q.meta.authTilt);
-    if (tiltQ && state.answers[tiltQ.id] !== undefined) {
-      const m = state.answers[tiltQ.id];
-      if (isAgree(m)) state.flags.authMarx = true;
-      else if (isDisagree(m)) state.flags.authMarx = false;
-      else state.flags.authMarx = null;
-    } else {
-      state.flags.authMarx = null;
-    }
-
-    // --- Leninist eligibility ---
-    const requiredLenIds = ["len_01","len_02","len_03"];
-    let reqAgree = 0, reqAnswered = 0;
-
-    for (const id of requiredLenIds) {
-      const q = questions.find(x => x && x.id === id);
-      if (!q) continue;
-      if (!safeShowIf(q)) continue;
-
-      const m = state.answers[id];
-      if (m === undefined) continue;
-
-      reqAnswered += 1;
-      if (isAgree(m)) reqAgree += 1;
-    }
-
-    state.flags.leninistEligible =
-      (reqAnswered === requiredLenIds.length) ? (reqAgree >= 2) : false;
-
-    // --- ML (Stalinism) vs MLM split (existing question tagged meta.mlStalinSplit) ---
-    const splitQ = questions.find(q => q && q.meta && q.meta.mlStalinSplit);
-    if (state.flags.leninistEligible && splitQ && state.answers[splitQ.id] !== undefined) {
-      state.flags.mlStalinEligible = isDisagree(state.answers[splitQ.id]);
-    } else {
-      state.flags.mlStalinEligible = false;
-    }
-
-    // --- MLM qualification ---
-    // If ML(Stalinism) triggered, MLM cannot be true.
-    if (state.flags.mlStalinEligible) {
-      state.flags.mlmQualified = false;
+  // Run only after DOM exists (prevents 'blank page' from null elements)
+  window.addEventListener("DOMContentLoaded", function () {
+    // --- HARD GUARD: questions must exist ---
+    if (typeof questions === "undefined" || !Array.isArray(questions)) {
+      showFatal(
+        "questions.js did not load OR it has a syntax error.\n\n" +
+        "What to do:\n" +
+        "1) Open DevTools → Console.\n" +
+        "2) Reload.\n" +
+        "3) You'll see the exact file + line that broke.\n\n" +
+        "Most common cause: a missing comma/bracket in questions.js."
+      );
       return;
     }
 
-    const mlmQs = questions.filter(q => q && q.meta && q.meta.mlmGate);
-    const relevantMlmQs = mlmQs.filter(q => safeShowIf(q));
-
-    let mlmUnsure = 0, mlmAnswered = 0;
-
-    for (const q of relevantMlmQs) {
-      const m = state.answers[q.id];
-      if (m === undefined) continue;
-      mlmAnswered += 1;
-      if (isUnsure(m)) mlmUnsure += 1;
+    if (questions.length === 0) {
+      showFatal("questions array is empty. Check questions.js.");
+      return;
     }
 
-    if (relevantMlmQs.length > 0 && mlmAnswered === relevantMlmQs.length) {
-      let anyDisagree = false;
-      for (const q of relevantMlmQs) {
-        const m = state.answers[q.id];
-        if (m !== undefined && isDisagree(m)) { anyDisagree = true; break; }
+    // --- Branching quiz engine ---
+    const state = {
+      scores: (() => {
+        try { return JSON.parse(localStorage.getItem("scores") || "{}"); }
+        catch (e) { return {}; }
+      })(),
+      answers: (() => {
+        try { return JSON.parse(localStorage.getItem("answers") || "{}"); }
+        catch (e) { return {}; }
+      })(),
+      flags: {
+        marxEligible: false,
+        authMarx: null,
+        leninistEligible: false,
+        mlStalinEligible: false,
+        mlmQualified: false
+      },
+      history: [],
+      pos: -1
+    };
+
+    function num(x) {
+      const n = parseFloat(x);
+      return Number.isFinite(n) ? n : 0;
+    }
+
+    function setScore(key, delta) {
+      state.scores[key] = num(state.scores[key]) + delta;
+    }
+
+    function applyEffect(q, mult) {
+      if (!q || !q.effect) return;
+      for (const k of Object.keys(q.effect)) {
+        setScore(k, mult * q.effect[k]);
       }
-      state.flags.mlmQualified = (!anyDisagree && (mlmUnsure <= 1));
-    } else {
-      state.flags.mlmQualified = false;
-    }
-  }
-
-  function findNextIndex(fromIndex) {
-    for (let i = fromIndex + 1; i < questions.length; i++) {
-      if (safeShowIf(questions[i])) return i;
-    }
-    return -1;
-  }
-
-  function persistState() {
-    localStorage.setItem("scores", JSON.stringify(state.scores));
-    localStorage.setItem("flags", JSON.stringify(state.flags));
-    localStorage.setItem("answers", JSON.stringify(state.answers));
-    localStorage.setItem("path", JSON.stringify(state.history.map(i => questions[i].id)));
-  }
-
-  function currentIndex() {
-    if (state.pos >= 0 && state.pos < state.history.length) return state.history[state.pos];
-    return -1;
-  }
-
-  function init_question() {
-    const idx = currentIndex();
-    if (idx === -1) return;
-
-    const q = questions[idx];
-    document.getElementById("question-text").innerHTML = q.question;
-    document.getElementById("question-number").innerHTML =
-      "Question " + (state.pos + 1) + " of " + state.history.length;
-
-    if (state.pos === 0) {
-      document.getElementById("back_button").style.display = "none";
-      document.getElementById("back_button_off").style.display = "block";
-    } else {
-      document.getElementById("back_button").style.display = "block";
-      document.getElementById("back_button_off").style.display = "none";
-    }
-  }
-
-  function start() {
-    // Ensure flags reflect any restored answers (prevents broken showIf early)
-    recomputeFlags();
-
-    const first = findNextIndex(-1);
-    if (first === -1) return results();
-
-    state.history = [first];
-    state.pos = 0;
-    init_question();
-  }
-
-  function next_question(mult) {
-    const idx = currentIndex();
-    if (idx === -1) return;
-
-    const q = questions[idx];
-
-    applyEffect(q, mult);
-    state.answers[q.id] = mult;
-
-    recomputeFlags();
-    persistState();
-
-    if (state.pos < state.history.length - 1) {
-      state.history = state.history.slice(0, state.pos + 1);
     }
 
-    const nextIdx = findNextIndex(idx);
-    if (nextIdx === -1) return results();
+    function isAgree(mult) { return mult >= 0.5; }
+    function isDisagree(mult) { return mult <= -0.5; }
+    function isUnsure(mult) { return mult === 0.0; }
 
-    state.history.push(nextIdx);
-    state.pos += 1;
-    init_question();
-  }
+    function safeShowIf(q) {
+      if (!q || !q.showIf) return true;
+      try { return !!q.showIf(state); }
+      catch (e) {
+        console.error("showIf crashed for question:", q && q.id, e);
+        return false;
+      }
+    }
 
-  function prev_question() {
-    if (state.pos <= 0) return;
-    state.pos -= 1;
-    init_question();
-  }
+    function recomputeFlags() {
+      // Marx gate
+      const marxQs = questions.filter(q => q && q.meta && q.meta.marxGate);
+      const answeredMarx = marxQs.filter(q => state.answers[q.id] !== undefined);
 
-  function results() {
-    recomputeFlags();
-    persistState();
-    location.href = "results.html";
-  }
+      let marxAgree = 0;
+      for (const q of marxQs) {
+        const m = state.answers[q.id];
+        if (m === undefined) continue;
+        if (isAgree(m)) marxAgree += 1;
+      }
 
-  start();
+      const marxComplete = (answeredMarx.length === marxQs.length);
+      state.flags.marxEligible = marxComplete ? (marxAgree >= 6) : false;
+
+      // Tilt
+      const tiltQ = questions.find(q => q && q.meta && q.meta.authTilt);
+      if (tiltQ && state.answers[tiltQ.id] !== undefined) {
+        const m = state.answers[tiltQ.id];
+        if (isAgree(m)) state.flags.authMarx = true;
+        else if (isDisagree(m)) state.flags.authMarx = false;
+        else state.flags.authMarx = null;
+      } else {
+        state.flags.authMarx = null;
+      }
+
+      // Lenin eligibility: 2/3 on len_01..len_03 (only if those questions exist)
+      const requiredLenIds = ["len_01","len_02","len_03"];
+      let reqAgree = 0, reqAnswered = 0, reqFound = 0;
+
+      for (const id of requiredLenIds) {
+        const q = questions.find(x => x && x.id === id);
+        if (!q) continue;
+        reqFound += 1;
+        if (!safeShowIf(q)) continue;
+
+        const m = state.answers[id];
+        if (m === undefined) continue;
+
+        reqAnswered += 1;
+        if (isAgree(m)) reqAgree += 1;
+      }
+
+      // If those IDs aren't present in your dataset, don't brick the quiz
+      state.flags.leninistEligible =
+        (reqFound === requiredLenIds.length && reqAnswered === requiredLenIds.length) ? (reqAgree >= 2) : false;
+
+      // ML(Stalinism) split: EXISTING question tagged meta.mlStalinSplit
+      const splitQ = questions.find(q => q && q.meta && q.meta.mlStalinSplit);
+      if (state.flags.leninistEligible && splitQ && state.answers[splitQ.id] !== undefined) {
+        state.flags.mlStalinEligible = isDisagree(state.answers[splitQ.id]);
+      } else {
+        state.flags.mlStalinEligible = false;
+      }
+
+      // MLM qualification: only if not ML(Stalinism)
+      if (state.flags.mlStalinEligible) {
+        state.flags.mlmQualified = false;
+        return;
+      }
+
+      const mlmQs = questions.filter(q => q && q.meta && q.meta.mlmGate).filter(q => safeShowIf(q));
+      let mlmUnsure = 0, mlmAnswered = 0;
+
+      for (const q of mlmQs) {
+        const m = state.answers[q.id];
+        if (m === undefined) continue;
+        mlmAnswered += 1;
+        if (isUnsure(m)) mlmUnsure += 1;
+      }
+
+      if (mlmQs.length > 0 && mlmAnswered === mlmQs.length) {
+        let anyDisagree = false;
+        for (const q of mlmQs) {
+          const m = state.answers[q.id];
+          if (m !== undefined && isDisagree(m)) { anyDisagree = true; break; }
+        }
+        state.flags.mlmQualified = (!anyDisagree && (mlmUnsure <= 1));
+      } else {
+        state.flags.mlmQualified = false;
+      }
+    }
+
+    function findNextIndex(fromIndex) {
+      for (let i = fromIndex + 1; i < questions.length; i++) {
+        if (safeShowIf(questions[i])) return i;
+      }
+      return -1;
+    }
+
+    function persistState() {
+      localStorage.setItem("scores", JSON.stringify(state.scores));
+      localStorage.setItem("flags", JSON.stringify(state.flags));
+      localStorage.setItem("answers", JSON.stringify(state.answers));
+      localStorage.setItem("path", JSON.stringify(state.history.map(i => questions[i].id)));
+    }
+
+    function currentIndex() {
+      if (state.pos >= 0 && state.pos < state.history.length) return state.history[state.pos];
+      return -1;
+    }
+
+    function init_question() {
+      const idx = currentIndex();
+      if (idx === -1) return;
+
+      const q = questions[idx];
+      const qt = document.getElementById("question-text");
+      const qn = document.getElementById("question-number");
+      if (!qt || !qn) {
+        showFatal("Missing #question-text or #question-number in HTML.");
+        return;
+      }
+
+      qt.innerHTML = q.question;
+      qn.innerHTML = "Question " + (state.pos + 1) + " of " + state.history.length;
+
+      const back = document.getElementById("back_button");
+      const backOff = document.getElementById("back_button_off");
+      if (back && backOff) {
+        if (state.pos === 0) {
+          back.style.display = "none";
+          backOff.style.display = "block";
+        } else {
+          back.style.display = "block";
+          backOff.style.display = "none";
+        }
+      }
+    }
+
+    function start() {
+      // Ensure flags are consistent before first showIf evaluation
+      recomputeFlags();
+
+      const first = findNextIndex(-1);
+      if (first === -1) return results();
+
+      state.history = [first];
+      state.pos = 0;
+      init_question();
+    }
+
+    // Expose these globally because your buttons call them
+    window.next_question = function (mult) {
+      const idx = currentIndex();
+      if (idx === -1) return;
+
+      const q = questions[idx];
+
+      applyEffect(q, mult);
+      state.answers[q.id] = mult;
+
+      recomputeFlags();
+      persistState();
+
+      if (state.pos < state.history.length - 1) {
+        state.history = state.history.slice(0, state.pos + 1);
+      }
+
+      const nextIdx = findNextIndex(idx);
+      if (nextIdx === -1) return results();
+
+      state.history.push(nextIdx);
+      state.pos += 1;
+      init_question();
+    };
+
+    window.prev_question = function () {
+      if (state.pos <= 0) return;
+      state.pos -= 1;
+      init_question();
+    };
+
+    function results() {
+      recomputeFlags();
+      persistState();
+      location.href = "results.html";
+    }
+
+    start();
+  });
+})();
 </script>
