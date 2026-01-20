@@ -14,54 +14,36 @@
   <hr>
   <h2 style="text-align:center;">Your Results</h2>
 
-  <!-- ============================
-       DOCTRINAL / MULTI-LAYER RESULT
-       ============================ -->
-
+  <!-- DOCTRINAL / MULTI-LAYER RESULT -->
   <div class="explanation_bg" style="margin-top: 20px;">
     <div class="spacer">
       <h2 style="text-align:center;">Doctrinal Result</h2>
-
-      <p id="branch-title"
-         style="text-align:center; font-size: 15pt; margin-bottom: 6px;"></p>
-
-      <p id="branch-desc"
-         style="text-align:center; opacity: 0.9; margin-top: 0;"></p>
+      <p id="branch-title" style="text-align:center; font-size: 15pt; margin-bottom: 6px;"></p>
+      <p id="branch-desc" style="text-align:center; opacity: 0.9; margin-top: 0;"></p>
 
       <p style="text-align:center; opacity: 0.8; font-size: 11.5pt; margin-top: 10px; line-height: 1.4;">
-        Method note: This result is determined via <b>multi-layer branching</b>.
-        You only see deeper layers (Leninism, MLM) if you first qualify for earlier layers (Marxism, tilt).
-        Passing multiple layers is expected; the label shown reflects the <b>deepest layer reached</b>.
+        Method note: This result uses <b>multi-layer branching</b> (gated question sets).
+        You qualify for Marx first, then a tilt layer, then Lenin, then MLM. The label shown reflects the <b>deepest layer reached</b>.
       </p>
     </div>
   </div>
 
-  <!-- ============================
-       AXIS RESULTS
-       ============================ -->
+  <!-- VERY VISIBLE DEBUG (REMOVE LATER) -->
+  <div class="explanation_bg" style="margin-top: 20px;">
+    <div class="spacer">
+      <h2 style="text-align:center;">Debug (remove later)</h2>
+      <pre id="debug-out" style="white-space: pre-wrap; font-size: 11pt;"></pre>
+    </div>
+  </div>
 
+  <!-- AXIS RESULTS -->
   <div id="axes-results"></div>
 
   <p style="text-align:center; margin-top: 24px;">
     <a href="index.html">Take the quiz again</a>
   </p>
 
-  <!-- ============================
-       DEBUG PANEL (TEMPORARY)
-       ============================ -->
-
-  <div class="explanation_bg" style="margin-top: 30px;">
-    <div class="spacer">
-      <h2 style="text-align:center;">Debug (remove later)</h2>
-      <pre id="debug-out"
-           style="white-space: pre-wrap; font-size: 11pt;"></pre>
-    </div>
-  </div>
-
-  <!-- ============================
-       LOAD AXES
-       ============================ -->
-
+  <!-- Load axes definition -->
   <script src="axes.js"></script>
 
   <script>
@@ -72,20 +54,13 @@
     let scores = {};
     let flags = {};
 
-    try {
-      scores = JSON.parse(localStorage.getItem("scores") || "{}");
-    } catch (e) {
-      scores = {};
-    }
+    try { scores = JSON.parse(localStorage.getItem("scores") || "{}"); } catch (e) { scores = {}; }
+    try { flags  = JSON.parse(localStorage.getItem("flags")  || "{}"); } catch (e) { flags  = {}; }
 
-    try {
-      flags = JSON.parse(localStorage.getItem("flags") || "{}");
-    } catch (e) {
-      flags = {};
-    }
+    const scoreKeys = (scores && typeof scores === "object") ? Object.keys(scores) : [];
 
     /* ============================
-       NUMERIC FIX (CRITICAL)
+       HELPERS
        ============================ */
 
     function num(x) {
@@ -93,20 +68,40 @@
       return Number.isFinite(n) ? n : 0;
     }
 
-    /* ============================
-       AXIS MATH
-       ============================ */
+    // Try to fetch a score by key, but also try common alternates and fuzzy matches.
+    function getScore(key) {
+      if (!scores || typeof scores !== "object") return 0;
+
+      // direct
+      if (Object.prototype.hasOwnProperty.call(scores, key)) return num(scores[key]);
+
+      // common alternates: hyphen/underscore/case
+      const alt1 = key.replace(/-/g, "_");
+      const alt2 = key.replace(/_/g, "-");
+      const alt3 = key.toLowerCase();
+      const alt4 = key.toUpperCase();
+
+      for (const k of [alt1, alt2, alt3, alt4]) {
+        if (Object.prototype.hasOwnProperty.call(scores, k)) return num(scores[k]);
+      }
+
+      // fuzzy: find any key that contains this key
+      // (helps if your quiz stores like "econ_left_total" but axes expects "econ_left")
+      const found = scoreKeys.find(sk => ("" + sk).toLowerCase().includes(("" + key).toLowerCase()));
+      if (found) return num(scores[found]);
+
+      return 0;
+    }
 
     function rightPercent(leftKey, rightKey) {
-      const L = num(scores[leftKey]);
-      const R = num(scores[rightKey]);
+      const L = getScore(leftKey);
+      const R = getScore(rightKey);
 
       const denom = Math.abs(L) + Math.abs(R);
       if (denom === 0) return 50;
 
       const rpct = (Math.abs(R) / denom) * 100;
       const diff = R - L;
-
       return diff < 0 ? (100 - rpct) : rpct;
     }
 
@@ -134,54 +129,16 @@
        ============================ */
 
     function determineBranch(f) {
-      if (!f || typeof f !== "object") {
-        return { title: "Axis-based result only", desc: "No doctrinal branch reached." };
-      }
+      if (!f || typeof f !== "object") return { title: "Axis-based result only", desc: "No doctrinal branch reached." };
 
-      if (f.mlmQualified) {
-        return {
-          title: "Marxism–Leninism–Maoism (MLM)",
-          desc: "You reached the deepest doctrinal layer used in this quiz."
-        };
-      }
+      if (f.mlmQualified) return { title: "Marxism–Leninism–Maoism (MLM)", desc: "Deepest doctrinal layer reached." };
+      if (f.leninistEligible) return { title: "Leninist Marxism", desc: "Leninist layer reached, MLM not reached." };
+      if (f.authMarx === true) return { title: "Authoritarian-leaning Marxism", desc: "Marx qualified + centralist tilt." };
+      if (f.authMarx === false) return { title: "Democratic / pluralist Marxism", desc: "Marx qualified + pluralist tilt." };
+      if (f.marxEligible) return { title: "Marxism (general)", desc: "Marx qualified only." };
 
-      if (f.leninistEligible) {
-        return {
-          title: "Leninist Marxism",
-          desc: "You qualified for party-centralist Marxism but not the MLM layer."
-        };
-      }
-
-      if (f.authMarx === true) {
-        return {
-          title: "Authoritarian-leaning Marxism",
-          desc: "You qualified for Marxism with a centralist tilt."
-        };
-      }
-
-      if (f.authMarx === false) {
-        return {
-          title: "Democratic / pluralist Marxism",
-          desc: "You qualified for Marxism with a pluralist tilt."
-        };
-      }
-
-      if (f.marxEligible) {
-        return {
-          title: "Marxism (general)",
-          desc: "You qualified for Marx-related questions only."
-        };
-      }
-
-      return {
-        title: "Axis-based result only",
-        desc: "You did not enter any doctrinal branch."
-      };
+      return { title: "Axis-based result only", desc: "You did not enter any doctrinal branch." };
     }
-
-    /* ============================
-       RENDER DOCTRINAL RESULT
-       ============================ */
 
     const branch = determineBranch(flags);
     document.getElementById("branch-title").textContent = branch.title;
@@ -192,38 +149,46 @@
        ============================ */
 
     const root = document.getElementById("axes-results");
+    const axesOk = (typeof AXES !== "undefined" && Array.isArray(AXES) && AXES.length > 0);
 
-    if (typeof AXES === "undefined") {
-      root.innerHTML = "<p style='text-align:center;'>AXES not loaded.</p>";
+    if (!axesOk) {
+      root.innerHTML = "<p style='text-align:center;'>AXES not loaded. Check axes.js link.</p>";
     } else {
       root.innerHTML = AXES.map(axisBlock).join("");
     }
 
     /* ============================
-       DEBUG OUTPUT
+       DEBUG OUTPUT (DIRECT + USEFUL)
        ============================ */
 
     const dbg = document.getElementById("debug-out");
-    const scoreKeys = Object.keys(scores || {});
-    const axesOk = (typeof AXES !== "undefined" && AXES.length);
-
     let debugText = "";
-    debugText += "scores exists: " + (localStorage.getItem("scores") !== null) + "\n";
+
+    debugText += "scores exists: " + (localStorage.getItem('scores') !== null) + "\n";
     debugText += "score key count: " + scoreKeys.length + "\n";
-    debugText += "score keys: " + scoreKeys.join(", ") + "\n\n";
+    debugText += "score keys: " + (scoreKeys.length ? scoreKeys.join(", ") : "(none)") + "\n\n";
 
     debugText += "AXES loaded: " + axesOk + "\n";
     if (axesOk) {
-      debugText += "AXES[0].leftKey: " + AXES[0].leftKey +
-                   " → value: " + scores[AXES[0].leftKey] + "\n";
-      debugText += "AXES[0].rightKey: " + AXES[0].rightKey +
-                   " → value: " + scores[AXES[0].rightKey] + "\n";
+      debugText += "AXES count: " + AXES.length + "\n\n";
+      // print first 3 axes key lookups
+      const n = Math.min(3, AXES.length);
+      for (let i = 0; i < n; i++) {
+        const a = AXES[i];
+        const Lraw = scores[a.leftKey];
+        const Rraw = scores[a.rightKey];
+        const L = getScore(a.leftKey);
+        const R = getScore(a.rightKey);
+        debugText += `Axis[${i}] ${a.title}\n`;
+        debugText += `  leftKey:  ${a.leftKey}  raw:${Lraw}  parsed:${L}\n`;
+        debugText += `  rightKey: ${a.rightKey} raw:${Rraw}  parsed:${R}\n`;
+        debugText += `  denom: ${Math.abs(L)+Math.abs(R)}\n\n`;
+      }
     }
 
     dbg.textContent = debugText;
   </script>
 
-  <!-- Minimal fallback styling -->
   <style>
     .axis { margin: 18px 0; }
     .axis-title { font-weight: 700; margin-bottom: 8px; }
@@ -232,6 +197,5 @@
     .bar-right { background:#999; }
     .axis-labels { display:flex; justify-content:space-between; margin-top:6px; font-size:14px; }
   </style>
-
 </body>
 </html>
