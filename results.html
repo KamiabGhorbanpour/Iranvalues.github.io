@@ -18,8 +18,19 @@
   <div class="explanation_bg" style="margin-top: 20px;">
     <div class="spacer">
       <h2 style="text-align:center;">Doctrinal Result</h2>
-      <p id="branch-title" style="text-align:center; font-size: 15pt;"></p>
-      <p id="branch-desc" style="text-align:center; opacity: 0.85;"></p>
+
+      <p id="branch-title" style="text-align:center; font-size: 15pt; margin-bottom: 6px;"></p>
+      <p id="branch-desc" style="text-align:center; opacity: 0.9; margin-top: 0;"></p>
+
+      <p id="branch-method"
+         style="text-align:center; opacity: 0.8; font-size: 11.5pt; margin-top: 10px; line-height: 1.35;">
+        Method note: This label is determined via <b>multi-layer branching</b> (gated question sets).
+        You first qualify for Marx-related questions, then a tilt layer, then Lenin-related questions, and finally MLM.
+        Passing deeper layers implies you passed earlier layers, so you may “qualify” for several layers, but your displayed label
+        reflects the <b>deepest layer reached</b>.
+      </p>
+
+      <p id="scores-debug" style="text-align:center; opacity: 0.65; font-size: 10.5pt; margin-top: 10px;"></p>
     </div>
   </div>
 
@@ -35,22 +46,41 @@
 
   <script>
     /* ============================
-       AXIS RENDERING (UNCHANGED)
+       READ STORED DATA
        ============================ */
 
-    const scores = JSON.parse(localStorage.getItem("scores") || "{}");
+    const scoresRaw = localStorage.getItem("scores");
+    const scores = (() => {
+      try { return JSON.parse(scoresRaw || "{}"); }
+      catch (e) { return {}; }
+    })();
 
+    const flags = (() => {
+      try { return JSON.parse(localStorage.getItem("flags")) || {}; }
+      catch (e) { return {}; }
+    })();
+
+    /* ============================
+       HELPERS
+       ============================ */
+
+    // IMPORTANT FIX:
+    // LocalStorage often contains numbers as strings. parseFloat handles both.
     function num(x) {
-      return Number.isFinite(x) ? x : 0;
+      const n = parseFloat(x);
+      return Number.isFinite(n) ? n : 0;
     }
 
     function rightPercent(leftKey, rightKey) {
       const L = num(scores[leftKey]);
       const R = num(scores[rightKey]);
+
       const denom = Math.abs(L) + Math.abs(R);
       if (denom === 0) return 50;
 
       const rpct = (Math.abs(R) / denom) * 100;
+
+      // Direction correction:
       const diff = R - L;
       if (diff < 0) return 100 - rpct;
       return rpct;
@@ -75,11 +105,85 @@
       `;
     }
 
+    /* ============================
+       DOCTRINAL BRANCH LOGIC
+       ============================ */
+
+    function determineBranch(flagsObj) {
+      if (!flagsObj || typeof flagsObj !== "object") {
+        return { title: "Axis-based result only", desc: "Your result is based solely on value axes." };
+      }
+
+      if (flagsObj.mlmQualified) {
+        return {
+          title: "Marxism–Leninism–Maoism (MLM)",
+          desc: "You reached the deepest doctrinal layer in this quiz’s branching sequence."
+        };
+      }
+
+      if (flagsObj.leninistEligible) {
+        return {
+          title: "Leninist Marxism",
+          desc: "You qualified for the Leninist layer (party-centralist criteria), but not the MLM layer."
+        };
+      }
+
+      if (flagsObj.authMarx === true) {
+        return {
+          title: "Authoritarian-leaning Marxism",
+          desc: "You qualified for Marxism and tilted toward centralized revolutionary cohesion."
+        };
+      }
+
+      if (flagsObj.authMarx === false) {
+        return {
+          title: "Democratic / pluralist Marxism",
+          desc: "You qualified for Marxism and tilted toward pluralism within socialist transformation."
+        };
+      }
+
+      if (flagsObj.marxEligible) {
+        return {
+          title: "Marxism (general)",
+          desc: "You qualified for Marx-related questions but did not enter a doctrinal sub-branch."
+        };
+      }
+
+      return {
+        title: "Axis-based result only",
+        desc: "You did not enter any doctrinal branch."
+      };
+    }
+
+    /* ============================
+       RENDER DOCTRINAL RESULT
+       ============================ */
+
+    const branch = determineBranch(flags);
+    document.getElementById("branch-title").textContent = branch.title;
+    document.getElementById("branch-desc").textContent = branch.desc;
+
+    /* ============================
+       RENDER AXES
+       ============================ */
+
     const root = document.getElementById("axes-results");
     if (typeof AXES === "undefined") {
-      root.innerHTML = "<p style='text-align:center;'>AXES not loaded.</p>";
+      root.innerHTML = "<p style='text-align:center;'>AXES not loaded. Make sure axes.js exists and is linked.</p>";
     } else {
       root.innerHTML = AXES.map(axisBlock).join("");
+    }
+
+    /* ============================
+       TINY DEBUG LINE (optional)
+       ============================ */
+
+    const dbg = document.getElementById("scores-debug");
+    if (dbg) {
+      const keys = scores && typeof scores === "object" ? Object.keys(scores) : [];
+      dbg.textContent = keys.length
+        ? ("Axis data loaded (" + keys.length + " score keys found).")
+        : "Axis data missing or empty (no score keys found) — check that the quiz writes localStorage.scores.";
     }
   </script>
 
@@ -92,74 +196,6 @@
     .bar-right { background:#999; }
     .axis-labels { display:flex; justify-content:space-between; margin-top:6px; font-size:14px; }
   </style>
-
-  <script>
-    /* ============================
-       DOCTRINAL BRANCH LOGIC
-       ============================ */
-
-    const flags = (() => {
-      try {
-        return JSON.parse(localStorage.getItem("flags")) || {};
-      } catch (e) {
-        return {};
-      }
-    })();
-
-    function determineBranch(flags) {
-      if (!flags || typeof flags !== "object") {
-        return {
-          title: "Axis-based result only",
-          desc: "Your result is based solely on value axes."
-        };
-      }
-
-      if (flags.mlmQualified) {
-        return {
-          title: "Marxism–Leninism–Maoism (MLM)",
-          desc: "You passed Marxist, Leninist, and anti-revisionist thresholds used in this quiz."
-        };
-      }
-
-      if (flags.leninistEligible) {
-        return {
-          title: "Leninist Marxism",
-          desc: "Your answers support centralized party leadership as a revolutionary necessity."
-        };
-      }
-
-      if (flags.authMarx === true) {
-        return {
-          title: "Authoritarian-leaning Marxism",
-          desc: "You prioritized revolutionary cohesion over pluralism."
-        };
-      }
-
-      if (flags.authMarx === false) {
-        return {
-          title: "Democratic / pluralist Marxism",
-          desc: "You favored pluralism within socialist transformation."
-        };
-      }
-
-      if (flags.marxEligible) {
-        return {
-          title: "Marxism (general)",
-          desc: "You met the criteria for Marxist analysis but not a doctrinal sub-branch."
-        };
-      }
-
-      return {
-        title: "Axis-based result only",
-        desc: "You did not enter any doctrinal branch."
-      };
-    }
-
-    const branch = determineBranch(flags);
-
-    document.getElementById("branch-title").textContent = branch.title;
-    document.getElementById("branch-desc").textContent = branch.desc;
-  </script>
 
 </body>
 </html>
