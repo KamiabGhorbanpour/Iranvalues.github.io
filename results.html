@@ -7,6 +7,7 @@
   <link rel="icon" type="x-icon" href="icon.png">
   <link rel="shortcut icon" type="x-icon" href="icon.png">
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 </head>
 
 <body>
@@ -14,36 +15,71 @@
   <hr>
   <h2 style="text-align:center;">Your Results</h2>
 
-  <!-- DOCTRINAL / MULTI-LAYER RESULT -->
-  <div class="explanation_bg" style="margin-top: 20px;">
-    <div class="spacer">
-      <h2 style="text-align:center;">Doctrinal Result</h2>
+  <!-- ====== BEAUTIFIED RESULT (IDEOLOGY / FIGURE) ====== -->
+  <div class="iv-wrap">
+    <section class="iv-hero" id="ideology-hero" aria-live="polite">
+      <div class="iv-hero__media">
+        <img id="ideology-img" src="img/cpimlm-symbol.png" alt="Ideology symbol" loading="lazy">
+      </div>
+      <div class="iv-hero__content">
+        <div class="iv-kicker">Ideology</div>
+        <h2 class="iv-title" id="ideology-title">Doctrinal Result</h2>
+        <p class="iv-desc" id="ideology-desc"></p>
 
-      <p id="branch-title" style="text-align:center; font-size: 15pt; margin-bottom: 6px;"></p>
-      <p id="branch-desc" style="text-align:center; opacity: 0.9; margin-top: 0;"></p>
+        <div class="iv-method" id="ideology-method">
+          <b>Method note:</b> This label is determined via <b>multi-layer branching</b> (gated question sets).
+          You only see deeper layers if you qualify for earlier layers. The label shown reflects the <b>deepest layer reached</b>.
+        </div>
+      </div>
+    </section>
 
-      <p style="text-align:center; opacity: 0.8; font-size: 11.5pt; margin-top: 10px; line-height: 1.4;">
-        Method note: This result uses <b>multi-layer branching</b> (gated question sets).
-        You qualify for Marx first, then a tilt layer, then Lenin, then MLM. Passing multiple layers is expected;
-        the label shown reflects the <b>deepest layer reached</b>.
-      </p>
-    </div>
+    <section class="iv-grid">
+      <article class="iv-card" id="figure-card">
+        <div class="iv-card__head">
+          <div class="iv-kicker">Close figure</div>
+          <h3 class="iv-card__title">Parviz Nikkhah</h3>
+        </div>
+
+        <div class="iv-card__body iv-figure">
+          <img class="iv-figure__img" src="img/parviz-nikkhah.jpg" alt="Parviz Nikkhah" loading="lazy">
+
+          <div class="iv-figure__text">
+            <p>
+              Parviz Nikkhah (1939–1979) is a controversial figure in the Iranian left’s modern history. He was active
+              in the Confederation of Iranian Students abroad, was imprisoned under the Shah, later publicly recanted,
+              and subsequently worked within state media structures. After the 1979 Revolution he was arrested and
+              executed (March 1979).
+            </p>
+
+            <ul class="iv-bullets">
+              <li><b>Why he matters here:</b> he’s often used as a case study in the politics of “confession,” recantation, and factional rupture.</li>
+              <li><b>Why he’s contested:</b> different camps read his post-prison turn as ideological betrayal, coercion, strategy, or both.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <article class="iv-card" id="doctrinal-card">
+        <div class="iv-card__head">
+          <div class="iv-kicker">Doctrinal result</div>
+          <h3 class="iv-card__title" id="branch-title">—</h3>
+        </div>
+        <div class="iv-card__body">
+          <p id="branch-desc" style="margin-top:0;"></p>
+          <p style="opacity:.85; margin-bottom:0;">
+            This doctrinal label is separate from the axis bars below (which capture value-direction and intensity).
+          </p>
+        </div>
+      </article>
+    </section>
   </div>
 
-  <!-- AXIS RESULTS -->
+  <!-- ====== AXIS RESULTS ====== -->
   <div id="axes-results"></div>
 
   <p style="text-align:center; margin-top: 24px;">
     <a href="index.html">Take the quiz again</a>
   </p>
-
-  <!-- DEBUG PANEL (REMOVE LATER) -->
-  <div class="explanation_bg" style="margin-top: 20px;">
-    <div class="spacer">
-      <h2 style="text-align:center;">Debug (remove later)</h2>
-      <pre id="debug-out" style="white-space: pre-wrap; font-size: 11pt;"></pre>
-    </div>
-  </div>
 
   <!-- Load axes definition -->
   <script src="axes.js"></script>
@@ -52,18 +88,11 @@
     /* ============================
        READ STORED DATA
        ============================ */
-
     let scores = {};
     let flags = {};
 
     try { scores = JSON.parse(localStorage.getItem("scores") || "{}"); } catch (e) { scores = {}; }
     try { flags  = JSON.parse(localStorage.getItem("flags")  || "{}"); } catch (e) { flags  = {}; }
-
-    const scoreKeys = (scores && typeof scores === "object") ? Object.keys(scores) : [];
-
-    /* ============================
-       HELPERS
-       ============================ */
 
     function num(x) {
       const n = parseFloat(x);
@@ -83,9 +112,69 @@
     }
 
     /* ============================
-       AXIS MATH (for mirrored scoring)
+       DOCTRINAL BRANCH LOGIC
        ============================ */
+    function determineBranch(f) {
+      if (!f || typeof f !== "object") {
+        return { key: "axis_only", title: "Axis-based result only", desc: "No doctrinal branch reached." };
+      }
 
+      if (f.mlmQualified) {
+        return { key: "mlm", title: "Marxism–Leninism–Maoism (MLM)", desc: "Deepest doctrinal layer reached." };
+      }
+      if (f.leninistEligible) {
+        return { key: "lenin", title: "Leninist Marxism", desc: "Leninist layer reached, MLM not reached." };
+      }
+      if (f.authMarx === true) {
+        return { key: "auth_marx", title: "Authoritarian-leaning Marxism", desc: "Marx qualified + centralist tilt." };
+      }
+      if (f.authMarx === false) {
+        return { key: "demo_marx", title: "Democratic / pluralist Marxism", desc: "Marx qualified + pluralist tilt." };
+      }
+      if (f.marxEligible) {
+        return { key: "marx", title: "Marxism (general)", desc: "Marx qualified only." };
+      }
+      return { key: "axis_only", title: "Axis-based result only", desc: "You did not enter any doctrinal branch." };
+    }
+
+    const branch = determineBranch(flags);
+
+    // Update doctrinal mini-card (always)
+    document.getElementById("branch-title").textContent = branch.title;
+    document.getElementById("branch-desc").textContent = branch.desc;
+
+    /* ============================
+       BEAUTIFIED IDEOLOGY HERO (MLM-SPECIFIC)
+       ============================ */
+    const heroTitle = document.getElementById("ideology-title");
+    const heroDesc  = document.getElementById("ideology-desc");
+    const heroImg   = document.getElementById("ideology-img");
+
+    if (branch.key === "mlm") {
+      heroTitle.textContent = "Marxism–Leninism–Maoism";
+
+      heroDesc.textContent =
+        "While Marxism–Leninism–Maoism never became a mass current in Iranian society, Maoist and anti-revisionist " +
+        "currents shaped small but organized milieus—especially among students abroad and segments of the revolutionary " +
+        "left after the Sino–Soviet split. In later decades, groups such as the Communist Party of Iran (Marxist–Leninist–Maoist) " +
+        "continued this lineage largely in exile and diaspora organizing, and most of these currents did not treat clerical rule " +
+        "as a legitimate revolutionary leadership.";
+
+      // Use your local file (recommended)
+      heroImg.src = "img/cpimlm-symbol.png";
+      heroImg.alt = "Symbol associated with Iranian MLM currents";
+    } else {
+      // Non-MLM: keep it clean and honest
+      heroTitle.textContent = branch.title;
+      heroDesc.textContent =
+        "This doctrinal label reflects which gated question layers you qualified for. The axis bars below show your value-direction and intensity.";
+      heroImg.src = "img/cpimlm-symbol.png";
+      heroImg.alt = "Ideology symbol";
+    }
+
+    /* ============================
+       AXIS MATH (MIRRORED SCORING + CSS-SAFE BAR WIDTHS)
+       ============================ */
     function rightPercent(leftKey, rightKey) {
       const L = getScore(leftKey);
       const R = getScore(rightKey);
@@ -102,7 +191,7 @@
       const r = rightPercent(axis.leftKey, axis.rightKey);
       const l = 100 - r;
 
-      // IMPORTANT: force flex-basis, so style.css can't lock it to 50/50
+      // Critical: force flex-basis so your global style.css cannot lock bars at 50/50
       return `
         <div class="axis">
           <div class="axis-title">${axis.title}</div>
@@ -118,81 +207,149 @@
       `;
     }
 
-    /* ============================
-       DOCTRINAL BRANCH LOGIC
-       ============================ */
-
-    function determineBranch(f) {
-      if (!f || typeof f !== "object") return { title: "Axis-based result only", desc: "No doctrinal branch reached." };
-
-      if (f.mlmQualified) return { title: "Marxism–Leninism–Maoism (MLM)", desc: "Deepest doctrinal layer reached." };
-      if (f.leninistEligible) return { title: "Leninist Marxism", desc: "Leninist layer reached, MLM not reached." };
-      if (f.authMarx === true) return { title: "Authoritarian-leaning Marxism", desc: "Marx qualified + centralist tilt." };
-      if (f.authMarx === false) return { title: "Democratic / pluralist Marxism", desc: "Marx qualified + pluralist tilt." };
-      if (f.marxEligible) return { title: "Marxism (general)", desc: "Marx qualified only." };
-
-      return { title: "Axis-based result only", desc: "You did not enter any doctrinal branch." };
-    }
-
-    const branch = determineBranch(flags);
-    document.getElementById("branch-title").textContent = branch.title;
-    document.getElementById("branch-desc").textContent = branch.desc;
-
-    /* ============================
-       RENDER AXES
-       ============================ */
-
     const root = document.getElementById("axes-results");
-    const axesOk = (typeof AXES !== "undefined" && Array.isArray(AXES) && AXES.length > 0);
-
-    if (!axesOk) {
-      root.innerHTML = "<p style='text-align:center;'>AXES not loaded. Check axes.js link.</p>";
+    if (typeof AXES === "undefined") {
+      root.innerHTML = "<p style='text-align:center;'>AXES not loaded. Make sure axes.js exists and is linked.</p>";
     } else {
       root.innerHTML = AXES.map(axisBlock).join("");
     }
-
-    /* ============================
-       DEBUG OUTPUT
-       ============================ */
-
-    const dbg = document.getElementById("debug-out");
-    let debugText = "";
-
-    debugText += "scores exists: " + (localStorage.getItem('scores') !== null) + "\n";
-    debugText += "score key count: " + scoreKeys.length + "\n";
-    debugText += "score keys: " + (scoreKeys.length ? scoreKeys.join(", ") : "(none)") + "\n\n";
-
-    debugText += "AXES loaded: " + axesOk + "\n";
-    if (axesOk) {
-      debugText += "AXES count: " + AXES.length + "\n\n";
-      const n = Math.min(3, AXES.length);
-      for (let i = 0; i < n; i++) {
-        const a = AXES[i];
-        const L = getScore(a.leftKey);
-        const R = getScore(a.rightKey);
-        const denom = Math.abs(L) + Math.abs(R);
-        const rp = rightPercent(a.leftKey, a.rightKey);
-        debugText += `Axis[${i}] ${a.title}\n`;
-        debugText += `  leftKey:  ${a.leftKey}  value:${L}\n`;
-        debugText += `  rightKey: ${a.rightKey} value:${R}\n`;
-        debugText += `  denom: ${denom}\n`;
-        debugText += `  computed right%: ${rp.toFixed(2)}\n\n`;
-      }
-    }
-
-    dbg.textContent = debugText;
   </script>
 
+  <!-- ====== BEAUTIFYING CSS (LOCAL TO RESULTS PAGE) ====== -->
   <style>
+    .iv-wrap{
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 10px 14px 6px;
+    }
+
+    .iv-hero{
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 16px;
+      align-items: center;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+      margin-top: 10px;
+    }
+
+    .iv-hero__media img{
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.04);
+    }
+
+    .iv-kicker{
+      font-size: 12px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      opacity: .75;
+      margin-bottom: 6px;
+    }
+
+    .iv-title{
+      margin: 0 0 8px;
+      font-size: 24px;
+      line-height: 1.2;
+    }
+
+    .iv-desc{
+      margin: 0 0 10px;
+      font-size: 15.5px;
+      line-height: 1.55;
+      opacity: .95;
+    }
+
+    .iv-method{
+      font-size: 13.5px;
+      line-height: 1.45;
+      opacity: .85;
+      background: rgba(0,0,0,0.18);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 14px;
+      padding: 10px 12px;
+    }
+
+    .iv-grid{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .iv-card{
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 18px;
+      padding: 14px;
+      box-shadow: 0 10px 26px rgba(0,0,0,0.14);
+    }
+
+    .iv-card__head{
+      margin-bottom: 10px;
+    }
+
+    .iv-card__title{
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.2;
+    }
+
+    .iv-figure{
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+
+    .iv-figure__img{
+      width: 120px;
+      height: 120px;
+      object-fit: cover;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.04);
+    }
+
+    .iv-figure__text p{
+      margin: 0 0 10px;
+      line-height: 1.55;
+      opacity: .95;
+    }
+
+    .iv-bullets{
+      margin: 0;
+      padding-left: 18px;
+      opacity: .9;
+    }
+
+    /* Axis section: keep your previous look, but make it cleaner */
+    #axes-results{
+      max-width: 980px;
+      margin: 14px auto 0;
+      padding: 0 14px;
+    }
+
     .axis { margin: 18px 0; }
     .axis-title { font-weight: 700; margin-bottom: 8px; }
-    .bar { display:flex; height:18px; border-radius:10px; overflow:hidden; background:#eee; }
-
-    /* fallback colors if style.css doesn't define */
+    .bar { display:flex; height:18px; border-radius:999px; overflow:hidden; background: rgba(255,255,255,0.12); }
     .bar-left { background:#444; }
     .bar-right { background:#999; }
+    .axis-labels { display:flex; justify-content:space-between; margin-top:6px; font-size:14px; opacity: .95; }
 
-    .axis-labels { display:flex; justify-content:space-between; margin-top:6px; font-size:14px; }
+    @media (max-width: 840px){
+      .iv-hero{ grid-template-columns: 1fr; }
+      .iv-hero__media img{ height: 200px; }
+      .iv-grid{ grid-template-columns: 1fr; }
+      .iv-figure{ grid-template-columns: 100px 1fr; }
+      .iv-figure__img{ width: 100px; height: 100px; }
+    }
   </style>
 </body>
 </html>
