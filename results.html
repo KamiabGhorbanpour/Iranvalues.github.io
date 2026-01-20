@@ -140,6 +140,35 @@
         layerNote: "Axes only"
       };
 
+      // --------------------------
+      // Democratic Socialism (NEW)
+      // Put this early so it wins over generic Marx branches.
+      // --------------------------
+      if (f && f.demSocEligible === true) {
+        out.key = "demsoc";
+        out.title = "Democratic Socialism";
+        out.desc =
+          "Democratic socialism in Iran became especially visible in the 1950s and 1960s as a current that tried to combine social justice with political democracy and national independence. " +
+          "It gained momentum in the era of the oil nationalization movement, where sovereignty over resources and mass democratic politics were often treated as part of the same struggle. " +
+          "Within that broader nationalist atmosphere, the Toilers Party and adjacent circles helped popularize a language of “socialism without dictatorship”: anti-imperialist and socially egalitarian, but also skeptical of one-party rule and external patronage.";
+
+        // Your torch/logo image (save as img/toilers-party.png)
+        out.ideologyImg = "img/toilers-party.png";
+        out.ideologyAlt = "Toilers Party / democratic socialist emblem";
+
+        // Your Maleki portrait (save as img/khalil-maleki.jpg)
+        out.figureImg = "img/khalil-maleki.jpg";
+        out.figureAlt = "Khalil Maleki";
+        out.figureName = "Khalil Maleki";
+        out.figureDesc =
+          "Khalil Maleki was one of the earliest major socialist leaders in Iran to reject Stalin’s model of “socialism” and the political culture built around it. " +
+          "He argued that socialism must be compatible with democratic freedoms—pluralism, elections, an independent press, and unions—and that social transformation in Iran should be pursued through democratic and incremental change rather than a single decisive revolutionary rupture against the Shah. " +
+          "In Iranian political memory, he is often associated with a “Third Force” tendency: socialist in economic outlook, nationalist in independence, and firmly opposed to authoritarianism—whether justified in the name of monarchy, religion, or party rule.";
+
+        out.layerNote = "Marx core gate → pluralism track → DemSoc filter (+ circle-backs)";
+        return out;
+      }
+
       // MLM
       if (f && f.mlmQualified) {
         out.key = "mlm";
@@ -149,7 +178,6 @@
           "Iranian Maoist currents broke with established pro-Soviet Marxist–Leninist organizations (above all the Tudeh Party), and their political identity was shaped by the Sino–Soviet split and the charge of “revisionism.” " +
           "Most of these parties ultimately functioned outside Iran, and many rejected Khomeini’s leadership in 1979 from the outset.";
 
-        // Put whatever you want here later — for now it will fall back to icon.png if it doesn't exist.
         out.ideologyImg = "img/cpimlm-symbol.png";
         out.ideologyAlt = "Symbol associated with Iranian MLM currents";
 
@@ -181,7 +209,7 @@
         out.figureName = "Ehsan Tabari";
         out.figureDesc =
           "Ehsan Tabari (1917–1989) was among the most prominent Tudeh Party intellectuals and a major figure in its theoretical production. " +
-          "He represents the tendency to defend the Stalin-era Soviet model and to treat post-1956 de-Stalinization and Khrushchev’s “Secret Speech” as lacking substantive value compared to the earlier orthodox line. " ;
+          "He represents the tendency to defend the Stalin-era Soviet model and to treat post-1956 de-Stalinization and Khrushchev’s “Secret Speech” as lacking substantive value compared to the earlier orthodox line. ";
 
         out.layerNote = "Marx gate → tilt → Lenin gate → ML/Stalin split";
         return out;
