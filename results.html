@@ -19,13 +19,9 @@
     <div class="iv-hero__media">
       <img id="ideology-img"
            class="iv-logo"
-           src="img/placeholder.png"
-           alt=""
-           loading="lazy"
-           onerror="this.style.display='none'; document.getElementById('ideology-img-fallback').style.display='flex';">
-      <div id="ideology-img-fallback" class="iv-img-fallback" style="display:none;">
-        <span>Image not found</span>
-      </div>
+           src="icon.png"
+           alt="Ideology symbol"
+           loading="lazy">
     </div>
 
     <div class="iv-hero__content">
@@ -43,16 +39,12 @@
   </div>
 
   <!-- CLOSE FIGURE -->
-  <div class="iv-card iv-figure">
+  <div class="iv-card iv-figure" id="figure-card">
     <div class="iv-figure__media">
       <img id="figure-img"
-           src="img/placeholder.png"
-           alt=""
-           loading="lazy"
-           onerror="this.style.display='none'; document.getElementById('figure-img-fallback').style.display='flex';">
-      <div id="figure-img-fallback" class="iv-img-fallback" style="display:none;">
-        <span>Figure image not found</span>
-      </div>
+           src="icon.png"
+           alt="Figure"
+           loading="lazy">
     </div>
 
     <div class="iv-figure__content">
@@ -69,21 +61,19 @@
     <a href="index.html">Take the quiz again</a>
   </p>
 
-  <!-- Load axes definition -->
   <script src="axes.js"></script>
 
   <script>
     // ----------------------------
-    // Storage
+    // Read storage
     // ----------------------------
     let scores = {};
     let flags = {};
-
     try { scores = JSON.parse(localStorage.getItem("scores") || "{}"); } catch (e) { scores = {}; }
     try { flags  = JSON.parse(localStorage.getItem("flags")  || "{}"); } catch (e) { flags  = {}; }
 
     // ----------------------------
-    // Axis rendering (flex-safe)
+    // Helpers
     // ----------------------------
     function num(x) {
       const n = parseFloat(x);
@@ -133,79 +123,79 @@
     }
 
     // ----------------------------
-    // Branch selection + content
+    // Branch content (TEXT + IMAGES)
+    // IMPORTANT: Ideology images will fall back to icon.png if missing.
     // ----------------------------
     function determineBranch(f) {
-      // Default
       const out = {
         key: "axisOnly",
         title: "Axis-based result only",
         desc: "You did not enter a doctrinal branch; your result reflects your value axes.",
-        ideologyImg: "img/placeholder.png",
-        ideologyAlt: "Ideology image",
-        figureImg: "img/placeholder.png",
-        figureAlt: "Figure image",
+        ideologyImg: "icon.png",
+        ideologyAlt: "Ideology symbol",
+        figureImg: "",
+        figureAlt: "",
         figureName: "",
         figureDesc: "",
         layerNote: "Axes only"
       };
 
-      // MLM (deepest)
+      // MLM
       if (f && f.mlmQualified) {
         out.key = "mlm";
         out.title = "Marxism–Leninism–Maoism (MLM)";
-        out.desc = "You reached the anti-revisionist branch in the quiz’s doctrinal layers.";
-        out.ideologyImg = "img/mlm.png";
-        out.ideologyAlt = "MLM symbol";
+        out.desc =
+          "While Marxism–Leninism–Maoism never had huge momentum in Iranian society and political culture, it influenced a number of militants and produced small but organized parties. " +
+          "Iranian Maoist currents broke with established pro-Soviet Marxist–Leninist organizations (above all the Tudeh Party), and their political identity was shaped by the Sino–Soviet split and the charge of “revisionism.” " +
+          "Most of these parties ultimately functioned outside Iran, and many rejected Khomeini’s leadership in 1979 from the outset.";
+
+        // Put whatever you want here later — for now it will fall back to icon.png if it doesn't exist.
+        out.ideologyImg = "img/cpimlm-symbol.png";
+        out.ideologyAlt = "Symbol associated with Iranian MLM currents";
+
         out.figureImg = "img/parviz-nikkhah.jpg";
         out.figureAlt = "Parviz Nikkhah";
         out.figureName = "Parviz Nikkhah";
-        out.figureDesc = "Example figure for this branch (edit this text as you like).";
+        out.figureDesc =
+          "Parviz Nikkhah is often remembered in Iranian political history through the arc of the 1960s–70s radical scene and the intense ideological fractures of the era. " +
+          "He is a useful reference point for how Iranian leftists and anti-imperialist movements splintered over strategy, international alignments, and what counted as “revisionism,” long before the post-1979 diaspora reorganized many of these networks.";
+
         out.layerNote = "Marx gate → tilt → Lenin gate → MLM gate";
         return out;
       }
 
-      // Marxism–Leninism (Stalinism) — YOUR REQUESTED END LABEL
-      // Trigger: leninistEligible + mlStalinEligible (your splitter)
+      // ML (Stalinism)
       if (f && f.leninistEligible && f.mlStalinEligible) {
         out.key = "ml_stalin";
         out.title = "Marxism–Leninism (Stalinism)";
-
         out.desc =
-          "This result corresponds to the pro-Soviet, orthodox Marxism–Leninism tradition as it existed before the post-1956 “de-Stalinization” turn. " +
-          "In Iran, this current was historically most visible through the Tudeh Party’s intellectual and organizational milieu: disciplined party organization, " +
-          "a strategic emphasis on broad anti-imperialist alliances and staged transformation, and a general alignment with Soviet interpretations of Marxism–Leninism. " +
-          "The 1956 “Secret Speech” and the wider de-Stalinization process reshaped the international communist movement and helped intensify later splits—" +
-          "including currents that framed Soviet post-1956 policy as “revisionist.”";
+          "This result corresponds to the orthodox, Soviet-style Marxism–Leninism associated with the pre-1956 political and organizational model. " +
+          "In Iran, this orientation was historically most visible through the Tudeh Party’s intellectual and organizational milieu: disciplined party structure, strategic emphasis on broad anti-imperialist alliances, and a staged conception of political transformation. " +
+          "After 1956, the Soviet turn toward de-Stalinization and the broader reorientation of the international communist movement contributed to intensified splits and the rise of anti-revisionist currents.";
 
-        out.ideologyImg = "img/ml-stalinism.png";   // <- add this file
+        out.ideologyImg = "img/ml-stalinism.png";
         out.ideologyAlt = "Marxism–Leninism (Stalinism) emblem";
 
-        out.figureImg = "img/ehsan-tabari.jpg";     // <- add this file
-        out.figureAlt = "Ehsan Tabari";
-        out.figureName = "Ehsan Tabari";
-        out.figureDesc =
-          "Ehsan Tabari (1917–1989) was a major Tudeh Party theorist and a prominent figure in the party’s intellectual production. " +
-          "He is commonly associated with the Tudeh’s pro-Soviet orientation and the orthodox Marxism–Leninism line that preceded, and then had to respond to, " +
-          "the post-1956 shift in Soviet political culture and doctrine.";
-
-        out.layerNote = "Marx gate → tilt → Lenin gate → ML/Stalinism split";
-        return out;
-      }
-
-      // General Marxism–Leninism (if Leninist eligible but not MLM and not ML/Stalin split)
-      if (f && f.leninistEligible) {
-        out.key = "ml";
-        out.title = "Marxism–Leninism";
-        out.desc =
-          "You qualified for the Marxism–Leninism layer in the quiz’s doctrinal branching, but did not enter (or did not qualify for) the MLM sub-branch.";
-        out.ideologyImg = "img/ml.png";
-        out.ideologyAlt = "Marxism–Leninism symbol";
         out.figureImg = "img/ehsan-tabari.jpg";
         out.figureAlt = "Ehsan Tabari";
         out.figureName = "Ehsan Tabari";
         out.figureDesc =
-          "Ehsan Tabari (1917–1989) was a major theorist associated with the Tudeh Party’s intellectual tradition.";
+          "Ehsan Tabari (1917–1989) was among the most prominent Tudeh Party intellectuals and a major figure in its theoretical production. " +
+          "In your framing for this quiz, he represents the tendency to defend the Stalin-era Soviet model and to treat post-1956 de-Stalinization and Khrushchev’s “Secret Speech” as lacking substantive value compared to the earlier orthodox line. " +
+          "If you want this phrased more cautiously or tied to a specific quotation/source you’re using, paste it and I’ll rewrite this paragraph tightly.";
+
+        out.layerNote = "Marx gate → tilt → Lenin gate → ML/Stalin split";
+        return out;
+      }
+
+      // General ML (if Leninist-eligible but neither MLM nor the Stalin split)
+      if (f && f.leninistEligible) {
+        out.key = "ml";
+        out.title = "Marxism–Leninism";
+        out.desc =
+          "You qualified for the Marxism–Leninism layer in the quiz’s branching logic but did not enter the MLM sub-branch.";
+        out.ideologyImg = "img/ml.png";
+        out.ideologyAlt = "Marxism–Leninism symbol";
         out.layerNote = "Marx gate → tilt → Lenin gate";
         return out;
       }
@@ -217,8 +207,6 @@
         out.desc = "You met Marx eligibility and leaned toward centralized revolutionary authority.";
         out.ideologyImg = "img/marx-auth.png";
         out.ideologyAlt = "Authoritarian-leaning Marxism";
-        out.figureName = "";
-        out.figureDesc = "";
         out.layerNote = "Marx gate → tilt";
         return out;
       }
@@ -229,8 +217,6 @@
         out.desc = "You met Marx eligibility while leaning toward pluralism within socialist transformation.";
         out.ideologyImg = "img/marx-dem.png";
         out.ideologyAlt = "Democratic Marxism";
-        out.figureName = "";
-        out.figureDesc = "";
         out.layerNote = "Marx gate → tilt";
         return out;
       }
@@ -240,7 +226,7 @@
         out.title = "Marxism (general)";
         out.desc = "You met the basic criteria for Marxist analysis but did not enter a doctrinal sub-branch.";
         out.ideologyImg = "img/marx.png";
-        out.ideologyAlt = "Marxism";
+        out.ideologyAlt = "Marxism symbol";
         out.layerNote = "Marx gate";
         return out;
       }
@@ -248,33 +234,50 @@
       return out;
     }
 
+    // ----------------------------
+    // Apply branch content to UI
+    // ----------------------------
     const branch = determineBranch(flags);
 
-    // Fill hero content
-    document.getElementById("branch-title").textContent = branch.title;
-    document.getElementById("branch-desc").textContent = branch.desc;
-    document.getElementById("layer-note").textContent = branch.layerNote;
+    const titleEl = document.getElementById("branch-title");
+    const descEl  = document.getElementById("branch-desc");
+    const layerEl = document.getElementById("layer-note");
 
-    // Images + alts
+    titleEl.textContent = branch.title;
+    descEl.textContent = branch.desc;
+    layerEl.textContent = branch.layerNote;
+
+    // ideology image: if missing, fallback to icon.png (DO NOT HIDE)
     const ideologyImg = document.getElementById("ideology-img");
-    ideologyImg.src = branch.ideologyImg;
     ideologyImg.alt = branch.ideologyAlt || branch.title;
+    ideologyImg.onerror = function () {
+      this.onerror = null;
+      this.src = "icon.png";
+    };
+    ideologyImg.src = branch.ideologyImg || "icon.png";
 
+    // figure: show/hide cleanly
+    const figureCard = document.getElementById("figure-card");
     const figureImg = document.getElementById("figure-img");
-    figureImg.src = branch.figureImg;
-    figureImg.alt = branch.figureAlt || branch.figureName || "Figure";
 
-    // Figure text
-    document.getElementById("figure-name").textContent = branch.figureName || "";
-    document.getElementById("figure-desc").textContent = branch.figureDesc || "";
-
-    // Hide figure card if empty (keeps layout clean for branches without a figure)
-    const figureCard = document.querySelector(".iv-figure");
     if (!branch.figureName && !branch.figureDesc) {
       figureCard.style.display = "none";
+    } else {
+      figureCard.style.display = "grid";
+      document.getElementById("figure-name").textContent = branch.figureName || "";
+      document.getElementById("figure-desc").textContent = branch.figureDesc || "";
+
+      figureImg.alt = branch.figureAlt || branch.figureName || "Figure";
+      figureImg.onerror = function () {
+        this.onerror = null;
+        this.src = "icon.png";
+      };
+      figureImg.src = branch.figureImg || "icon.png";
     }
 
+    // ----------------------------
     // Render axes
+    // ----------------------------
     const root = document.getElementById("axes-results");
     const axesOk = (typeof AXES !== "undefined" && Array.isArray(AXES) && AXES.length > 0);
 
@@ -286,8 +289,7 @@
   </script>
 
   <style>
-    /* --- Aesthetic upgrade for the results section --- */
-
+    /* Beautified results cards */
     :root{
       --iv-bg: rgba(0,0,0,0.22);
       --iv-border: rgba(255,255,255,0.12);
@@ -309,9 +311,7 @@
     .iv-hero{
       display: grid;
       grid-template-columns: 320px 1fr;
-      gap: 0;
     }
-
     @media (max-width: 860px){
       .iv-hero{ grid-template-columns: 1fr; }
     }
@@ -325,9 +325,8 @@
       border-right: 1px solid var(--iv-border);
       min-height: 220px;
     }
-
     @media (max-width: 860px){
-      .iv-hero__media{ border-right: none; border-bottom: 1px solid var(--iv-border); }
+      .iv-hero__media{ border-right:none; border-bottom:1px solid var(--iv-border); }
     }
 
     .iv-logo{
@@ -340,9 +339,7 @@
       padding: 12px;
     }
 
-    .iv-hero__content{
-      padding: 18px 20px;
-    }
+    .iv-hero__content{ padding: 18px 20px; }
 
     .iv-kicker{
       font-size: 12px;
@@ -391,17 +388,12 @@
       gap: 8px;
       align-items:center;
     }
-
-    .iv-pill b{
-      color: var(--iv-text);
-      font-weight: 700;
-    }
+    .iv-pill b{ color: var(--iv-text); font-weight: 700; }
 
     .iv-figure{
       display:grid;
       grid-template-columns: 220px 1fr;
     }
-
     @media (max-width: 860px){
       .iv-figure{ grid-template-columns: 1fr; }
     }
@@ -415,9 +407,8 @@
       border-right: 1px solid var(--iv-border);
       min-height: 220px;
     }
-
     @media (max-width: 860px){
-      .iv-figure__media{ border-right: none; border-bottom: 1px solid var(--iv-border); }
+      .iv-figure__media{ border-right:none; border-bottom:1px solid var(--iv-border); }
     }
 
     .iv-figure__media img{
@@ -429,23 +420,9 @@
       background: rgba(0,0,0,0.18);
     }
 
-    .iv-figure__content{
-      padding: 18px 20px;
-    }
+    .iv-figure__content{ padding: 18px 20px; }
 
-    .iv-img-fallback{
-      width: 100%;
-      height: 220px;
-      border-radius: 14px;
-      border: 1px dashed rgba(255,255,255,0.18);
-      background: rgba(0,0,0,0.18);
-      color: rgba(255,255,255,0.75);
-      align-items:center;
-      justify-content:center;
-      font-size: 14px;
-    }
-
-    /* Axes: keep your functional styling */
+    /* Axes styling */
     .axis { margin: 18px auto; max-width: 980px; }
     .axis-title { font-weight: 700; margin-bottom: 8px; }
     .bar { display:flex; height:18px; border-radius:10px; overflow:hidden; background:#eee; }
@@ -453,5 +430,6 @@
     .bar-right { background:#999; }
     .axis-labels { display:flex; justify-content:space-between; margin-top:6px; font-size:14px; }
   </style>
+
 </body>
 </html>
