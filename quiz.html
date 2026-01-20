@@ -1,57 +1,3 @@
-<head>
-  <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:400,700" rel="stylesheet">
-  <link href='style.css' rel='stylesheet' type='text/css'>
-  <title>Iranvalues Quiz</title>
-  <link rel="icon" type="x-icon" href="icon.png">
-  <link rel="shortcut icon" type="x-icon" href="icon.png">
-  <meta charset="utf-8">
-  <script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
-  <script>
-    (adsbygoogle = window.adsbygoogle || []).push({
-      google_ad_client: "ca-pub-6511426299019766",
-      enable_page_level_ads: true
-    });
-  </script>
-</head>
-
-<body>
-
-<!-- IMPORTANT: load axes BEFORE questions -->
-<script type="application/javascript" src="axes.js"></script>
-<script type="application/javascript" src="questions.js"></script>
-
-<h1>Iranvalues</h1>
-<hr>
-<h2 style="text-align:center;" id="question-number">Loading...</h2>
-<p class="question" id="question-text"></p>
-
-<button class="button stronglyAgree" onclick="next_question( 1.0)">Strongly Agree</button> <br>
-<button class="button agree" onclick="next_question( 0.5)">Agree</button> <br>
-<button class="button neutral" onclick="next_question( 0.0)">Neutral/Unsure</button> <br>
-<button class="button disagree" onclick="next_question(-0.5)">Disagree</button> <br>
-<button class="button stronglyDisagree" onclick="next_question(-1.0)">Strongly Disagree</button> <br>
-
-<button class="small_button" onclick="prev_question()" id="back_button">Back</button>
-<button class="small_button_off" id="back_button_off">Back</button><br>
-
-<!-- Website visit statistics - no personal information is collected! -->
-<script type="text/javascript">
-  var sc_project=11325211;
-  var sc_invisible=1;
-  var sc_security="fd9f0659";
-  var scJsHost = (("https:" == document.location.protocol) ?
-  "https://secure." : "http://www.");
-  document.write("<sc"+"ript type='text/javascript' src='" +
-  scJsHost+
-  "statcounter.com/counter/counter.js'></"+"script>");
-</script>
-<noscript><div class="statcounter"><a title="web stats"
-href="http://statcounter.com/" target="_blank"><img
-class="statcounter"
-src="//c.statcounter.com/11325211/0/fd9f0659/1/" alt="web
-stats"></a></div></noscript>
-
-<!-- JavaScript for the test itself -->
 <script>
   // --- Branching quiz engine ---
   // Expects: questions (from questions.js)
@@ -62,8 +8,9 @@ stats"></a></div></noscript>
     answers: {},      // questionId -> mult
     flags: {          // computed continuously
       marxEligible: false,
-      authMarx: null,          // true/false/null
+      authMarx: null,           // true/false/null
       leninistEligible: false,
+      mlStalinEligible: false,  // NEW: ML (Stalinism) splitter
       mlmQualified: false
     },
     history: [],      // list of indices shown
@@ -71,7 +18,8 @@ stats"></a></div></noscript>
   };
 
   function num(x) {
-    return Number.isFinite(x) ? x : 0;
+    const n = parseFloat(x);
+    return Number.isFinite(n) ? n : 0;
   }
 
   function setScore(key, delta) {
@@ -94,15 +42,13 @@ stats"></a></div></noscript>
     const marxQs = questions.filter(q => q.meta && q.meta.marxGate);
     const answeredMarx = marxQs.filter(q => state.answers[q.id] !== undefined);
 
-    // Heuristic: require enough answered, and enough "agree"
-    // Default rule: >=6 agrees out of 9 (once all answered), otherwise false.
     let marxAgree = 0;
     for (const q of marxQs) {
       const m = state.answers[q.id];
       if (m === undefined) continue;
       if (isAgree(m)) marxAgree += 1;
     }
-    // Only decide eligibility once all 9 are answered (avoids early branching weirdness)
+
     const marxComplete = (answeredMarx.length === marxQs.length);
     state.flags.marxEligible = marxComplete ? (marxAgree >= 6) : false;
 
@@ -117,22 +63,11 @@ stats"></a></div></noscript>
       state.flags.authMarx = null;
     }
 
-    // --- Leninist eligibility (for authMarx === true only) ---
-    const lenQs = questions.filter(q => q.meta && q.meta.leninGate);
-    let lenAgree = 0;
-    let lenAnswered = 0;
-    for (const q of lenQs) {
-      if (q.showIf && !q.showIf(state)) continue; // only count if actually relevant
-      const m = state.answers[q.id];
-      if (m === undefined) continue;
-      lenAnswered += 1;
-      if (isAgree(m)) lenAgree += 1;
-    }
-    // Rule: >=2 agrees among the first 3 "leninGate" questions that are asked
-    // (We include len_04 in leninGate but it's not required for eligibility.)
-    // We'll compute required-set explicitly:
+    // --- Leninist eligibility ---
+    // (Your current scheme: require 2/3 agrees on len_01..len_03)
     const requiredLenIds = ["len_01","len_02","len_03"];
     let reqAgree = 0, reqAnswered = 0;
+
     for (const id of requiredLenIds) {
       const q = questions.find(x => x.id === id);
       if (!q) continue;
@@ -142,24 +77,40 @@ stats"></a></div></noscript>
       reqAnswered += 1;
       if (isAgree(m)) reqAgree += 1;
     }
-    state.flags.leninistEligible = (reqAnswered === requiredLenIds.length) ? (reqAgree >= 2) : false;
 
-    // --- MLM qualification (allow up to 1 unsure across MLM gate questions) ---
+    state.flags.leninistEligible =
+      (reqAnswered === requiredLenIds.length) ? (reqAgree >= 2) : false;
+
+    // --- ML (Stalinism) vs MLM SPLIT ---
+    // You said: "disagreeing with the ONE at the end makes you ML instead of MLM"
+    // So we look for the EXISTING question that you tag as meta.mlStalinSplit === true,
+    // and if user DISAGREES (<= -0.5), we set mlStalinEligible true.
+    const splitQ = questions.find(q => q.meta && q.meta.mlStalinSplit);
+    if (state.flags.leninistEligible && splitQ && state.answers[splitQ.id] !== undefined) {
+      state.flags.mlStalinEligible = isDisagree(state.answers[splitQ.id]);
+    } else {
+      state.flags.mlStalinEligible = false;
+    }
+
+    // --- MLM qualification (allow up to 1 unsure, no disagree) ---
+    // IMPORTANT: if user is ML (Stalinism), we force MLM false (they are not on MLM path).
+    if (state.flags.mlStalinEligible) {
+      state.flags.mlmQualified = false;
+      return;
+    }
+
     const mlmQs = questions.filter(q => q.meta && q.meta.mlmGate);
     const relevantMlmQs = mlmQs.filter(q => !q.showIf || q.showIf(state));
-    let mlmAgree = 0, mlmUnsure = 0, mlmAnswered = 0;
+
+    let mlmUnsure = 0, mlmAnswered = 0;
     for (const q of relevantMlmQs) {
       const m = state.answers[q.id];
       if (m === undefined) continue;
       mlmAnswered += 1;
-      if (isAgree(m)) mlmAgree += 1;
-      else if (isUnsure(m)) mlmUnsure += 1;
-      // Disagree counts as fail.
+      if (isUnsure(m)) mlmUnsure += 1;
     }
-    // MLM gate requires all answered, no disagree, and at most 1 unsure:
-    // i.e. mlmAgree + mlmUnsure === total and mlmUnsure <= 1
+
     if (relevantMlmQs.length > 0 && mlmAnswered === relevantMlmQs.length) {
-      // Check no disagree:
       let anyDisagree = false;
       for (const q of relevantMlmQs) {
         const m = state.answers[q.id];
@@ -188,9 +139,6 @@ stats"></a></div></noscript>
     localStorage.setItem("path", JSON.stringify(state.history.map(i => questions[i].id)));
   }
 
-  // --- UI wiring ---
-  let qn = 0;
-
   function currentIndex() {
     if (state.pos >= 0 && state.pos < state.history.length) return state.history[state.pos];
     return -1;
@@ -202,8 +150,6 @@ stats"></a></div></noscript>
 
     const q = questions[idx];
     document.getElementById("question-text").innerHTML = q.question;
-
-    // Display position within shown questions so far
     document.getElementById("question-number").innerHTML =
       "Question " + (state.pos + 1) + " of " + state.history.length;
 
@@ -217,7 +163,6 @@ stats"></a></div></noscript>
   }
 
   function start() {
-    // Start from the first eligible question
     const first = findNextIndex(-1);
     if (first === -1) return results();
 
@@ -232,28 +177,22 @@ stats"></a></div></noscript>
 
     const q = questions[idx];
 
-    // Apply scoring
+    // Apply scoring & record answer
     applyEffect(q, mult);
-
-    // Record answer
     state.answers[q.id] = mult;
 
-    // Recompute flags (branching depends on this)
+    // Recompute flags and persist
     recomputeFlags();
-
-    // Persist continuously
     persistState();
 
-    // Move forward: if we've previously branched and used Back, drop future history
+    // Drop future history if user went back
     if (state.pos < state.history.length - 1) {
       state.history = state.history.slice(0, state.pos + 1);
     }
 
-    // Find next eligible question after current index
+    // Find next eligible question
     const nextIdx = findNextIndex(idx);
-    if (nextIdx === -1) {
-      return results();
-    }
+    if (nextIdx === -1) return results();
 
     state.history.push(nextIdx);
     state.pos += 1;
@@ -267,17 +206,10 @@ stats"></a></div></noscript>
   }
 
   function results() {
-    // Save final state
     recomputeFlags();
     persistState();
-
-    // Go to results page (your results.html already reads localStorage.scores)
     location.href = "results.html";
   }
 
-  // Start the quiz
   start();
 </script>
-
-</body>
-
