@@ -35,7 +35,7 @@
 
 <!-- Axes + Questions -->
 <script src="axes.js"></script>
-<script src="questions.js?v=mlsplit2"></script>
+<script src="questions.js?v=mlsplit3"></script>
 
 <!-- Website visit statistics - no personal information is collected! -->
 <script type="text/javascript">
@@ -114,10 +114,15 @@ stats"></a></div></noscript>
     })(),
     flags: {
       marxEligible: false,
-      authMarx: null,
+      authMarx: null,          // true/false/null (null = not answered / neutral)
       leninistEligible: false,
       mlStalinEligible: false,
-      mlmQualified: false
+      mlmQualified: false,
+
+      // NEW (optional but useful for later results logic)
+      demSocEligible: false,
+      reformMarx: false,
+      revolutionMarx: false
     },
     history: [],
     pos: -1
@@ -153,23 +158,54 @@ stats"></a></div></noscript>
   }
 
   function recomputeFlags() {
-    // Marx eligibility
-    const marxQs = questions.filter(q => q && q.meta && q.meta.marxGate);
-    const answeredMarx = marxQs.filter(q => state.answers[q.id] !== undefined);
+    // --------------------------
+    // 1) Marx eligibility: use ONLY marxCore items
+    // --------------------------
+    const marxCoreQs = questions.filter(q => q && q.meta && q.meta.marxCore);
+    const answeredCore = marxCoreQs.filter(q => state.answers[q.id] !== undefined);
 
-    let marxAgree = 0;
-    for (const q of marxQs) {
+    let coreAgree = 0;
+    for (const q of marxCoreQs) {
       const m = state.answers[q.id];
       if (m === undefined) continue;
-      if (isAgree(m)) marxAgree++;
+      if (isAgree(m)) coreAgree++;
     }
 
-    const marxComplete = answeredMarx.length === marxQs.length;
-    state.flags.marxEligible = marxComplete ? (marxAgree >= 6) : false;
+    // Require completion of core set, then threshold.
+    // With current questions: marxCore count should be 6 (mx_01..mx_05, mx_07).
+    const coreComplete = answeredCore.length === marxCoreQs.length;
+    // Threshold: 4/6 (tune later)
+    state.flags.marxEligible = coreComplete ? (coreAgree >= 4) : false;
 
-    // Auth tilt
+    // --------------------------
+    // 2) Reform vs rupture tilt inside Marx (optional helper flags)
+    // --------------------------
+    const ruptureQs = questions.filter(q => q && q.meta && q.meta.marxRupture);
+    const answeredRupture = ruptureQs.filter(q => state.answers[q.id] !== undefined);
+
+    let ruptureAgree = 0;
+    for (const q of ruptureQs) {
+      const m = state.answers[q.id];
+      if (m === undefined) continue;
+      if (isAgree(m)) ruptureAgree++;
+    }
+
+    // Only meaningful after Marx eligibility; also require rupture questions answered for stability.
+    const ruptureComplete = answeredRupture.length === ruptureQs.length;
+    if (state.flags.marxEligible && ruptureComplete) {
+      // With current questions: marxRupture count is 3 (mx_06, mx_08, mx_09)
+      state.flags.revolutionMarx = (ruptureAgree >= 2);
+      state.flags.reformMarx = (ruptureAgree <= 1);
+    } else {
+      state.flags.revolutionMarx = false;
+      state.flags.reformMarx = false;
+    }
+
+    // --------------------------
+    // 3) Auth tilt: mx_tilt_pluralism (provisional)
+    // --------------------------
     const tiltQ = questions.find(q => q && q.meta && q.meta.authTilt);
-    if (tiltQ && state.answers[tiltQ.id] !== undefined) {
+    if (tiltQ && state.answers[tiltQ.id] !== undefined && state.flags.marxEligible) {
       const m = state.answers[tiltQ.id];
       if (isAgree(m)) state.flags.authMarx = true;
       else if (isDisagree(m)) state.flags.authMarx = false;
@@ -178,7 +214,33 @@ stats"></a></div></noscript>
       state.flags.authMarx = null;
     }
 
-    // Leninist eligibility (2/3 on len_01..len_03)
+    // --------------------------
+    // 4) Circle-backs that can OVERRIDE authMarx
+    // --------------------------
+    // 4a) From DemSoc/pluralist track -> bounce into authMarx
+    const cbAuth = questions.find(q => q && q.meta && q.meta.authCircleBack);
+    if (cbAuth && state.answers[cbAuth.id] !== undefined && state.flags.marxEligible) {
+      const m = state.answers[cbAuth.id];
+      // If they agree-ish that censorship/party restriction is justified, force authMarx.
+      if (isAgree(m)) state.flags.authMarx = true;
+      // If they strongly disagree, strongly indicates not-auth.
+      if (isDisagree(m)) state.flags.authMarx = false;
+    }
+
+    // 4b) From auth/Lenin track -> bounce out into DemSoc
+    const cbDemSoc = questions.find(q => q && q.meta && q.meta.demSocCircleBack);
+    let cbDemSocAgree = false;
+    if (cbDemSoc && state.answers[cbDemSoc.id] !== undefined && state.flags.marxEligible) {
+      const m = state.answers[cbDemSoc.id];
+      if (isAgree(m)) cbDemSocAgree = true;
+      if (cbDemSocAgree) state.flags.authMarx = false;
+    }
+
+    // --------------------------
+    // 5) Leninist eligibility (2/3 on len_01..len_03), but:
+    // - only if authMarx === true
+    // - and NOT overridden by DemSoc circleback
+    // --------------------------
     const requiredLenIds = ["len_01","len_02","len_03"];
     let found = 0, answered = 0, agree = 0;
 
@@ -196,10 +258,14 @@ stats"></a></div></noscript>
       if (isAgree(m)) agree++;
     }
 
-    // Only enforce if those questions actually exist
-    state.flags.leninistEligible = (found === 3 && answered === 3) ? (agree >= 2) : false;
+    state.flags.leninistEligible =
+      (found === 3 && answered === 3 && state.flags.authMarx === true && !cbDemSocAgree)
+        ? (agree >= 2)
+        : false;
 
-    // ML(Stalinism) split question: meta.mlStalinSplit
+    // --------------------------
+    // 6) ML(Stalinism) split: meta.mlStalinSplit
+    // --------------------------
     const splitQ = questions.find(q => q && q.meta && q.meta.mlStalinSplit);
     if (state.flags.leninistEligible && splitQ && state.answers[splitQ.id] !== undefined) {
       state.flags.mlStalinEligible = isDisagree(state.answers[splitQ.id]);
@@ -207,7 +273,37 @@ stats"></a></div></noscript>
       state.flags.mlStalinEligible = false;
     }
 
-    // MLM gate: if ML(Stalinism), MLM must be false
+    // --------------------------
+    // 7) DemSoc eligibility (simple rule)
+    // Only meaningful when Marx-eligible and NOT authMarx
+    // --------------------------
+    state.flags.demSocEligible = false;
+    if (state.flags.marxEligible && state.flags.authMarx !== true) {
+      const dsQs = questions.filter(q => q && q.meta && q.meta.demSocGate).filter(q => safeShowIf(q));
+      const dsConfirmQ = questions.find(q => q && q.meta && q.meta.demSocConfirm);
+
+      let dsAnswered = 0, dsAgree = 0, dsStrongDisagree = 0;
+      for (const q of dsQs) {
+        const m = state.answers[q.id];
+        if (m === undefined) continue;
+        dsAnswered++;
+        if (isAgree(m)) dsAgree++;
+        if (isDisagree(m)) dsStrongDisagree++;
+      }
+
+      const confirmAnswered = dsConfirmQ && state.answers[dsConfirmQ.id] !== undefined;
+      const confirmOk = !confirmAnswered || (state.answers[dsConfirmQ.id] >= 0);
+
+      // Enforce only once the whole dsGate set has been answered (so it doesn't flip mid-way).
+      if (dsQs.length > 0 && dsAnswered === dsQs.length && confirmOk) {
+        // Threshold: 4-of-(dsQs.length) and at most 1 strong-disagree
+        state.flags.demSocEligible = (dsAgree >= 4 && dsStrongDisagree <= 1);
+      }
+    }
+
+    // --------------------------
+    // 8) MLM gate: if ML(Stalinism), MLM must be false
+    // --------------------------
     if (state.flags.mlStalinEligible) {
       state.flags.mlmQualified = false;
       return;
@@ -230,7 +326,7 @@ stats"></a></div></noscript>
       if (isDisagree(m)) anyDisagree = true;
     }
 
-    if (mlmQs.length > 0 && answeredMlm === mlmQs.length) {
+    if (mlmQs.length > 0 && answeredMlm === mlmQs.length && state.flags.leninistEligible) {
       state.flags.mlmQualified = (!anyDisagree && unsureMlm <= 1);
     } else {
       state.flags.mlmQualified = false;
@@ -333,6 +429,11 @@ stats"></a></div></noscript>
 
   function prev_question() {
     if (state.pos <= 0) return;
+
+    // NOTE: We do NOT undo score deltas here (same as your original).
+    // Back is only navigation; next answer overwrites state.answers[q.id] but scores remain cumulative.
+    // If you later want true backtracking, we can recompute scores from scratch each time.
+
     state.pos--;
     init_question();
   }
@@ -347,4 +448,3 @@ stats"></a></div></noscript>
 
 </body>
 </html>
-
