@@ -14,34 +14,54 @@
   <hr>
   <h2 style="text-align:center;">Your Results</h2>
 
-  <!-- DOCTRINAL RESULT BLOCK -->
+  <!-- ============================
+       DOCTRINAL / MULTI-LAYER RESULT
+       ============================ -->
+
   <div class="explanation_bg" style="margin-top: 20px;">
     <div class="spacer">
       <h2 style="text-align:center;">Doctrinal Result</h2>
 
-      <p id="branch-title" style="text-align:center; font-size: 15pt; margin-bottom: 6px;"></p>
-      <p id="branch-desc" style="text-align:center; opacity: 0.9; margin-top: 0;"></p>
+      <p id="branch-title"
+         style="text-align:center; font-size: 15pt; margin-bottom: 6px;"></p>
 
-      <p id="branch-method"
-         style="text-align:center; opacity: 0.8; font-size: 11.5pt; margin-top: 10px; line-height: 1.35;">
-        Method note: This label is determined via <b>multi-layer branching</b> (gated question sets).
-        You first qualify for Marx-related questions, then a tilt layer, then Lenin-related questions, and finally MLM.
-        Passing deeper layers implies you passed earlier layers, so you may “qualify” for several layers, but your displayed label
-        reflects the <b>deepest layer reached</b>.
+      <p id="branch-desc"
+         style="text-align:center; opacity: 0.9; margin-top: 0;"></p>
+
+      <p style="text-align:center; opacity: 0.8; font-size: 11.5pt; margin-top: 10px; line-height: 1.4;">
+        Method note: This result is determined via <b>multi-layer branching</b>.
+        You only see deeper layers (Leninism, MLM) if you first qualify for earlier layers (Marxism, tilt).
+        Passing multiple layers is expected; the label shown reflects the <b>deepest layer reached</b>.
       </p>
-
-      <p id="scores-debug" style="text-align:center; opacity: 0.65; font-size: 10.5pt; margin-top: 10px;"></p>
     </div>
   </div>
 
-  <!-- AXIS RESULTS -->
+  <!-- ============================
+       AXIS RESULTS
+       ============================ -->
+
   <div id="axes-results"></div>
 
   <p style="text-align:center; margin-top: 24px;">
     <a href="index.html">Take the quiz again</a>
   </p>
 
-  <!-- Load axes definition -->
+  <!-- ============================
+       DEBUG PANEL (TEMPORARY)
+       ============================ -->
+
+  <div class="explanation_bg" style="margin-top: 30px;">
+    <div class="spacer">
+      <h2 style="text-align:center;">Debug (remove later)</h2>
+      <pre id="debug-out"
+           style="white-space: pre-wrap; font-size: 11pt;"></pre>
+    </div>
+  </div>
+
+  <!-- ============================
+       LOAD AXES
+       ============================ -->
+
   <script src="axes.js"></script>
 
   <script>
@@ -49,27 +69,33 @@
        READ STORED DATA
        ============================ */
 
-    const scoresRaw = localStorage.getItem("scores");
-    const scores = (() => {
-      try { return JSON.parse(scoresRaw || "{}"); }
-      catch (e) { return {}; }
-    })();
+    let scores = {};
+    let flags = {};
 
-    const flags = (() => {
-      try { return JSON.parse(localStorage.getItem("flags")) || {}; }
-      catch (e) { return {}; }
-    })();
+    try {
+      scores = JSON.parse(localStorage.getItem("scores") || "{}");
+    } catch (e) {
+      scores = {};
+    }
+
+    try {
+      flags = JSON.parse(localStorage.getItem("flags") || "{}");
+    } catch (e) {
+      flags = {};
+    }
 
     /* ============================
-       HELPERS
+       NUMERIC FIX (CRITICAL)
        ============================ */
 
-    // IMPORTANT FIX:
-    // LocalStorage often contains numbers as strings. parseFloat handles both.
     function num(x) {
       const n = parseFloat(x);
       return Number.isFinite(n) ? n : 0;
     }
+
+    /* ============================
+       AXIS MATH
+       ============================ */
 
     function rightPercent(leftKey, rightKey) {
       const L = num(scores[leftKey]);
@@ -79,11 +105,9 @@
       if (denom === 0) return 50;
 
       const rpct = (Math.abs(R) / denom) * 100;
-
-      // Direction correction:
       const diff = R - L;
-      if (diff < 0) return 100 - rpct;
-      return rpct;
+
+      return diff < 0 ? (100 - rpct) : rpct;
     }
 
     function axisBlock(axis) {
@@ -109,43 +133,43 @@
        DOCTRINAL BRANCH LOGIC
        ============================ */
 
-    function determineBranch(flagsObj) {
-      if (!flagsObj || typeof flagsObj !== "object") {
-        return { title: "Axis-based result only", desc: "Your result is based solely on value axes." };
+    function determineBranch(f) {
+      if (!f || typeof f !== "object") {
+        return { title: "Axis-based result only", desc: "No doctrinal branch reached." };
       }
 
-      if (flagsObj.mlmQualified) {
+      if (f.mlmQualified) {
         return {
           title: "Marxism–Leninism–Maoism (MLM)",
-          desc: "You reached the deepest doctrinal layer in this quiz’s branching sequence."
+          desc: "You reached the deepest doctrinal layer used in this quiz."
         };
       }
 
-      if (flagsObj.leninistEligible) {
+      if (f.leninistEligible) {
         return {
           title: "Leninist Marxism",
-          desc: "You qualified for the Leninist layer (party-centralist criteria), but not the MLM layer."
+          desc: "You qualified for party-centralist Marxism but not the MLM layer."
         };
       }
 
-      if (flagsObj.authMarx === true) {
+      if (f.authMarx === true) {
         return {
           title: "Authoritarian-leaning Marxism",
-          desc: "You qualified for Marxism and tilted toward centralized revolutionary cohesion."
+          desc: "You qualified for Marxism with a centralist tilt."
         };
       }
 
-      if (flagsObj.authMarx === false) {
+      if (f.authMarx === false) {
         return {
           title: "Democratic / pluralist Marxism",
-          desc: "You qualified for Marxism and tilted toward pluralism within socialist transformation."
+          desc: "You qualified for Marxism with a pluralist tilt."
         };
       }
 
-      if (flagsObj.marxEligible) {
+      if (f.marxEligible) {
         return {
           title: "Marxism (general)",
-          desc: "You qualified for Marx-related questions but did not enter a doctrinal sub-branch."
+          desc: "You qualified for Marx-related questions only."
         };
       }
 
@@ -168,23 +192,35 @@
        ============================ */
 
     const root = document.getElementById("axes-results");
+
     if (typeof AXES === "undefined") {
-      root.innerHTML = "<p style='text-align:center;'>AXES not loaded. Make sure axes.js exists and is linked.</p>";
+      root.innerHTML = "<p style='text-align:center;'>AXES not loaded.</p>";
     } else {
       root.innerHTML = AXES.map(axisBlock).join("");
     }
 
     /* ============================
-       TINY DEBUG LINE (optional)
+       DEBUG OUTPUT
        ============================ */
 
-    const dbg = document.getElementById("scores-debug");
-    if (dbg) {
-      const keys = scores && typeof scores === "object" ? Object.keys(scores) : [];
-      dbg.textContent = keys.length
-        ? ("Axis data loaded (" + keys.length + " score keys found).")
-        : "Axis data missing or empty (no score keys found) — check that the quiz writes localStorage.scores.";
+    const dbg = document.getElementById("debug-out");
+    const scoreKeys = Object.keys(scores || {});
+    const axesOk = (typeof AXES !== "undefined" && AXES.length);
+
+    let debugText = "";
+    debugText += "scores exists: " + (localStorage.getItem("scores") !== null) + "\n";
+    debugText += "score key count: " + scoreKeys.length + "\n";
+    debugText += "score keys: " + scoreKeys.join(", ") + "\n\n";
+
+    debugText += "AXES loaded: " + axesOk + "\n";
+    if (axesOk) {
+      debugText += "AXES[0].leftKey: " + AXES[0].leftKey +
+                   " → value: " + scores[AXES[0].leftKey] + "\n";
+      debugText += "AXES[0].rightKey: " + AXES[0].rightKey +
+                   " → value: " + scores[AXES[0].rightKey] + "\n";
     }
+
+    dbg.textContent = debugText;
   </script>
 
   <!-- Minimal fallback styling -->
