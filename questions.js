@@ -151,16 +151,16 @@ const questions = [
     effect: { authoritarian: 2, democratic: -2 },
     meta: { mlmGate: true }
   },
-  {
-    id: "mlm_04",
-    layer: "mlm_gate",
-    showIf: (state) => state.flags.leninistEligible === true,
-    question: "The strategy of postponing socialism in favor of alliances with non-socialist “anti-imperialist” forces has historically failed in Iran.",
-    effect: { authoritarian: 2, democratic: -2 },
-    meta: { mlmGate: true, mlStalinSplit: true }
+{
+  id: "ml_split",
+  question: "The strategy of postponing socialism in favor of a broad anti-imperialist alliance has historically failed in Iran.",
+  effect: { /* whatever you already had */ },
+  meta: { mlStalinSplit: true }, // <-- THIS is the key
+  showIf: (state) => state.flags.leninistEligible === true
+},
 
-  }
 ];
 
 // IMPORTANT: keep the name `questions` for compatibility with the existing pages.
+
 
