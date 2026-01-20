@@ -18,21 +18,15 @@
   <div class="explanation_bg" style="margin-top: 20px;">
     <div class="spacer">
       <h2 style="text-align:center;">Doctrinal Result</h2>
+
       <p id="branch-title" style="text-align:center; font-size: 15pt; margin-bottom: 6px;"></p>
       <p id="branch-desc" style="text-align:center; opacity: 0.9; margin-top: 0;"></p>
 
       <p style="text-align:center; opacity: 0.8; font-size: 11.5pt; margin-top: 10px; line-height: 1.4;">
         Method note: This result uses <b>multi-layer branching</b> (gated question sets).
-        You qualify for Marx first, then a tilt layer, then Lenin, then MLM. The label shown reflects the <b>deepest layer reached</b>.
+        You qualify for Marx first, then a tilt layer, then Lenin, then MLM. Passing multiple layers is expected;
+        the label shown reflects the <b>deepest layer reached</b>.
       </p>
-    </div>
-  </div>
-
-  <!-- VERY VISIBLE DEBUG (REMOVE LATER) -->
-  <div class="explanation_bg" style="margin-top: 20px;">
-    <div class="spacer">
-      <h2 style="text-align:center;">Debug (remove later)</h2>
-      <pre id="debug-out" style="white-space: pre-wrap; font-size: 11pt;"></pre>
     </div>
   </div>
 
@@ -42,6 +36,14 @@
   <p style="text-align:center; margin-top: 24px;">
     <a href="index.html">Take the quiz again</a>
   </p>
+
+  <!-- DEBUG PANEL (REMOVE LATER) -->
+  <div class="explanation_bg" style="margin-top: 20px;">
+    <div class="spacer">
+      <h2 style="text-align:center;">Debug (remove later)</h2>
+      <pre id="debug-out" style="white-space: pre-wrap; font-size: 11pt;"></pre>
+    </div>
+  </div>
 
   <!-- Load axes definition -->
   <script src="axes.js"></script>
@@ -68,31 +70,26 @@
       return Number.isFinite(n) ? n : 0;
     }
 
-    // Try to fetch a score by key, but also try common alternates and fuzzy matches.
     function getScore(key) {
       if (!scores || typeof scores !== "object") return 0;
-
-      // direct
       if (Object.prototype.hasOwnProperty.call(scores, key)) return num(scores[key]);
 
-      // common alternates: hyphen/underscore/case
+      // mild fallback variants
       const alt1 = key.replace(/-/g, "_");
       const alt2 = key.replace(/_/g, "-");
-      const alt3 = key.toLowerCase();
-      const alt4 = key.toUpperCase();
-
-      for (const k of [alt1, alt2, alt3, alt4]) {
+      for (const k of [alt1, alt2]) {
         if (Object.prototype.hasOwnProperty.call(scores, k)) return num(scores[k]);
       }
-
-      // fuzzy: find any key that contains this key
-      // (helps if your quiz stores like "econ_left_total" but axes expects "econ_left")
-      const found = scoreKeys.find(sk => ("" + sk).toLowerCase().includes(("" + key).toLowerCase()));
-      if (found) return num(scores[found]);
 
       return 0;
     }
 
+    /* ============================
+       AXIS MATH (FIXED FOR MIRRORED SCORING)
+       ============================ */
+
+    // Your engine produces mirrored poles (e.g., authoritarian=+209, democratic=-209).
+    // So we compute bias from (R - L), normalized by (|L|+|R|), then map to 0..100.
     function rightPercent(leftKey, rightKey) {
       const L = getScore(leftKey);
       const R = getScore(rightKey);
@@ -100,9 +97,11 @@
       const denom = Math.abs(L) + Math.abs(R);
       if (denom === 0) return 50;
 
-      const rpct = (Math.abs(R) / denom) * 100;
-      const diff = R - L;
-      return diff < 0 ? (100 - rpct) : rpct;
+      const bias = (R - L) / denom; // -1..+1 typically
+      const rpct = 50 + 50 * bias;  // 0..100
+
+      // clamp for safety
+      return Math.max(0, Math.min(100, rpct));
     }
 
     function axisBlock(axis) {
@@ -158,7 +157,7 @@
     }
 
     /* ============================
-       DEBUG OUTPUT (DIRECT + USEFUL)
+       DEBUG OUTPUT
        ============================ */
 
     const dbg = document.getElementById("debug-out");
@@ -171,18 +170,18 @@
     debugText += "AXES loaded: " + axesOk + "\n";
     if (axesOk) {
       debugText += "AXES count: " + AXES.length + "\n\n";
-      // print first 3 axes key lookups
       const n = Math.min(3, AXES.length);
       for (let i = 0; i < n; i++) {
         const a = AXES[i];
-        const Lraw = scores[a.leftKey];
-        const Rraw = scores[a.rightKey];
         const L = getScore(a.leftKey);
         const R = getScore(a.rightKey);
+        const denom = Math.abs(L) + Math.abs(R);
+        const rp = rightPercent(a.leftKey, a.rightKey);
         debugText += `Axis[${i}] ${a.title}\n`;
-        debugText += `  leftKey:  ${a.leftKey}  raw:${Lraw}  parsed:${L}\n`;
-        debugText += `  rightKey: ${a.rightKey} raw:${Rraw}  parsed:${R}\n`;
-        debugText += `  denom: ${Math.abs(L)+Math.abs(R)}\n\n`;
+        debugText += `  leftKey:  ${a.leftKey}  value:${L}\n`;
+        debugText += `  rightKey: ${a.rightKey} value:${R}\n`;
+        debugText += `  denom: ${denom}\n`;
+        debugText += `  computed right%: ${rp.toFixed(2)}\n\n`;
       }
     }
 
